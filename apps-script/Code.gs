@@ -5,7 +5,7 @@
  * Данные хранятся в вашей таблице: лист «Таблица» — для чтения, лист «data» — служебный.
  */
 
-var VERSION = 2;
+var VERSION = 3;
 
 function doGet() {
   try {
@@ -35,6 +35,7 @@ function doPost(e) {
     var merged = merge_(stored, incoming);
     if (JSON.stringify(merged) !== JSON.stringify(stored)) {
       writeTable_(merged);
+      writeGifts_(merged);
       write_(merged);
     }
     return out_({ ok: true, data: merged });
@@ -106,7 +107,7 @@ function writeTable_(d) {
   s.clear();
   var rows = [['Мероприятие', 'Расход', 'План', 'Итог', 'Оплачено', 'Осталось', 'Статус', 'Заметка']];
   d.events.forEach(function (ev) {
-    d.items.filter(function (it) { return it.event === ev.id; }).forEach(function (it) {
+    d.items.filter(function (it) { return it.event === ev.id && it.kind !== 'gift'; }).forEach(function (it) {
       var paid = (it.payments || []).reduce(function (a, p) { return a + (Number(p.amount) || 0); }, 0);
       var cost = it.actual != null ? it.actual : (it.planned || 0);
       rows.push([txt_(ev.name), txt_(it.name), it.planned || 0, it.actual != null ? it.actual : '', paid,
@@ -118,6 +119,22 @@ function writeTable_(d) {
   s.getRange(1, 1, 1, rows[0].length).setFontWeight('bold');
   s.setFrozenRows(1);
   if (rows.length > 1) s.getRange(2, 3, rows.length - 1, 4).setNumberFormat('#,##0');
+}
+
+function writeGifts_(d) {
+  var s = sheet_('Подарки');
+  s.clear();
+  var sides = { groom: 'Сторона жениха', bride: 'Сторона невесты' };
+  var rows = [['Мероприятие', 'Кто подарил', 'Сторона', 'Сумма', 'Подарок вещью', 'Заметка']];
+  d.events.forEach(function (ev) {
+    d.items.filter(function (it) { return it.event === ev.id && it.kind === 'gift'; }).forEach(function (g) {
+      rows.push([txt_(ev.name), txt_(g.name || ''), sides[g.side] || '', Number(g.amount) || '', txt_(g.item || ''), txt_(g.note || '')]);
+    });
+  });
+  s.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+  s.getRange(1, 1, 1, rows[0].length).setFontWeight('bold');
+  s.setFrozenRows(1);
+  if (rows.length > 1) s.getRange(2, 4, rows.length - 1, 1).setNumberFormat('#,##0');
 }
 
 /* текст, начинающийся с = + - @, таблица иначе посчитает формулой */
