@@ -96,7 +96,7 @@ function write_(data) {
   var s = sheet_('data');
   s.clear();
   var text = JSON.stringify(data), rows = [];
-  // префикс «x», чтобы таблица не приняла кусок за число или формулу
+  /* префикс «x», чтобы таблица не приняла кусок за число или формулу */
   for (var i = 0; i < text.length; i += 40000) rows.push(['x' + text.slice(i, i + 40000)]);
   s.getRange(1, 1, rows.length, 1).setNumberFormat('@').setValues(rows);
 }
@@ -120,7 +120,7 @@ function writeTable_(d) {
   if (rows.length > 1) s.getRange(2, 3, rows.length - 1, 4).setNumberFormat('#,##0');
 }
 
-// текст, начинающийся с = + - @, таблица иначе посчитает формулой
+/* текст, начинающийся с = + - @, таблица иначе посчитает формулой */
 function txt_(v) {
   v = String(v);
   return /^[=+\-@]/.test(v) ? "'" + v : v;

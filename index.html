@@ -768,7 +768,16 @@ function setSync(s){
 }
 const shareLink = () => location.origin + location.pathname + '#sync=' + encodeURIComponent(sync.url);
 
-function openSync(){ renderSyncBody(); document.getElementById('syncDlg').showModal(); }
+const CODE_RAW='https://raw.githubusercontent.com/bekbolatkuanyshev/wedding-budget/main/apps-script/Code.gs';
+let codeText='';
+async function loadCode(){
+  if(codeText) return;
+  for(const u of ['apps-script/Code.gs', CODE_RAW]){
+    try{ const r=await fetch(u,{cache:'no-store'}); if(r.ok){ const t=await r.text(); if(t.includes('function doPost')){ codeText=t; break; } } }catch(_){}
+  }
+  const box=document.getElementById('codeBox'); if(box && codeText) box.value=codeText;
+}
+function openSync(){ renderSyncBody(); document.getElementById('syncDlg').showModal(); if(!sync.url) loadCode(); }
 function renderSyncBody(){
   const b=document.getElementById('syncBody');
   if(sync.url){
@@ -789,7 +798,10 @@ function renderSyncBody(){
       <ol class="steps">
         <li>Создайте новую Google-таблицу: <a href="https://sheets.new" target="_blank" rel="noopener">sheets.new</a>, назовите её «Бюджет свадьбы».</li>
         <li>В таблице откройте <b>Расширения → Apps Script</b>.</li>
-        <li>Удалите всё в редакторе и вставьте код: <button class="btn" type="button" id="copyCode" style="min-height:34px;font-size:13px;margin-top:4px">Скопировать код</button></li>
+        <li>Удалите всё в редакторе и вставьте код целиком:
+          <textarea id="codeBox" readonly spellcheck="false" style="display:block;width:100%;height:110px;margin:8px 0;padding:8px;border:1px solid var(--line-strong);border-radius:10px;background:var(--bg);color:var(--ink);font:12px/1.4 ui-monospace,Menlo,monospace;white-space:pre;resize:vertical">${esc(codeText||'Загружаю код…')}</textarea>
+          <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" type="button" id="copyCode" style="min-height:38px;font-size:14px">Скопировать код</button>
+          <a class="btn" style="min-height:38px;font-size:14px;text-decoration:none" href="${CODE_RAW}" target="_blank" rel="noopener">Открыть код отдельно</a></span></li>
         <li>Сохраните (💾), вверху выберите функцию <b>setup</b> и нажмите <b>▶ Выполнить</b>. Разрешите доступ: «Проверить разрешения» → ваш аккаунт → «Дополнительно» → «Перейти в проект» → «Разрешить».</li>
         <li>Нажмите <b>Развернуть → Новое развертывание</b>, шестерёнка → <b>Веб-приложение</b>. «Выполнять от имени» — <b>Я</b>, «У кого есть доступ» — <b>Все</b> (не «Все с аккаунтом Google»). Нажмите «Развернуть».</li>
         <li>Скопируйте <b>URL веб-приложения</b> (заканчивается на <code>/exec</code>) и вставьте ниже.</li>
@@ -808,8 +820,13 @@ document.getElementById('syncBody').addEventListener('click', async e=>{
     sync={}; ls.del(SYNC_KEY); setSync('off'); renderSyncBody(); render();
   }
   if(id==='copyCode'){
-    try{ const r=await fetch('apps-script/Code.gs',{cache:'no-store'}); if(!r.ok) throw 0; copy(await r.text(),'Код скопирован'); }
-    catch(_){ window.open('https://github.com/bekbolatkuanyshev/wedding-budget/blob/main/apps-script/Code.gs','_blank'); }
+    const box=document.getElementById('codeBox');
+    if(!codeText){ window.open(CODE_RAW,'_blank'); return; }
+    let ok=false;
+    /* копируем синхронно в обработчике нажатия — так работает и в Safari */
+    try{ box.focus(); box.select(); box.setSelectionRange(0, box.value.length); ok=document.execCommand('copy'); }catch(_){}
+    if(!ok){ try{ await navigator.clipboard.writeText(codeText); ok=true; }catch(_){} }
+    toast(ok ? 'Код скопирован — вставьте его в Apps Script' : 'Не удалось скопировать: выделите текст в поле и скопируйте вручную');
   }
   if(id==='connect'){ connect(document.getElementById('syncUrl').value.trim()); }
 });
