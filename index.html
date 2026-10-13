@@ -725,10 +725,18 @@ function markDirty(){ ls.set(DIRTY_KEY,'1'); if(sync.url){ setSync(navigator.onL
 
 async function api(body){
   const url = sync.url + (body ? '' : (sync.url.includes('?')?'&':'?') + 't=' + Date.now());
-  const r = await fetch(url, body ? {method:'POST', body:JSON.stringify(body), headers:{'Content-Type':'text/plain;charset=utf-8'}} : {});
-  if(!r.ok) throw new Error('Сервер ответил '+r.status);
-  let j; try{ j=await r.json(); }catch(e){ throw new Error('Неверный ответ. Проверьте, что доступ к веб-приложению — «Все».'); }
-  if(!j.ok) throw new Error(j.error||'Ошибка сервера');
+  let r;
+  try{ r = await fetch(url, body ? {method:'POST', body:JSON.stringify(body), headers:{'Content-Type':'text/plain;charset=utf-8'}, redirect:'follow'} : {redirect:'follow'}); }
+  catch(e){ throw new Error(navigator.onLine===false ? 'нет интернета' : 'Google не пустил запрос. Почти всегда это значит, что в развертывании «У кого есть доступ» стоит не «Все», либо приложение не авторизовано (см. шаг 4).'); }
+  const text = await r.text();
+  if(!r.ok) throw new Error(r.status===404 ? 'ссылка не найдена (404). Скопируйте URL веб-приложения заново.' : 'Google ответил ошибкой '+r.status);
+  let j; try{ j=JSON.parse(text); }
+  catch(e){
+    if(/accounts\.google|ServiceLogin|signin/i.test(text)) throw new Error('Google просит войти в аккаунт: в развертывании выберите «У кого есть доступ: Все».');
+    if(/TypeError|Exception|Ошибка|Error/i.test(text)) throw new Error('ошибка в скрипте: '+text.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').slice(0,160));
+    throw new Error('неожиданный ответ от Google. Проверьте ссылку и настройки развертывания.');
+  }
+  if(!j.ok) throw new Error(/permission|разрешени|authoriz/i.test(j.error||'') ? 'у скрипта нет разрешений: в редакторе Apps Script запустите функцию setup и разрешите доступ.' : 'ошибка в скрипте: '+(j.error||''));
   return j;
 }
 async function syncNow(){
@@ -782,8 +790,9 @@ function renderSyncBody(){
         <li>Создайте новую Google-таблицу: <a href="https://sheets.new" target="_blank" rel="noopener">sheets.new</a>, назовите её «Бюджет свадьбы».</li>
         <li>В таблице откройте <b>Расширения → Apps Script</b>.</li>
         <li>Удалите всё в редакторе и вставьте код: <button class="btn" type="button" id="copyCode" style="min-height:34px;font-size:13px;margin-top:4px">Скопировать код</button></li>
-        <li>Нажмите <b>Развернуть → Новое развертывание</b>, тип — <b>Веб-приложение</b>. «Выполнять от имени» — <b>Я</b>, «У кого есть доступ» — <b>Все</b>. Разверните и разрешите доступ к таблице (Google покажет предупреждение — нажмите «Дополнительно» → «Перейти»).</li>
-        <li>Скопируйте <b>URL веб-приложения</b> и вставьте ниже.</li>
+        <li>Сохраните (💾), вверху выберите функцию <b>setup</b> и нажмите <b>▶ Выполнить</b>. Разрешите доступ: «Проверить разрешения» → ваш аккаунт → «Дополнительно» → «Перейти в проект» → «Разрешить».</li>
+        <li>Нажмите <b>Развернуть → Новое развертывание</b>, шестерёнка → <b>Веб-приложение</b>. «Выполнять от имени» — <b>Я</b>, «У кого есть доступ» — <b>Все</b> (не «Все с аккаунтом Google»). Нажмите «Развернуть».</li>
+        <li>Скопируйте <b>URL веб-приложения</b> (заканчивается на <code>/exec</code>) и вставьте ниже.</li>
       </ol>
       <label class="field"><span>URL веб-приложения</span><input id="syncUrl" placeholder="https://script.google.com/macros/s/…/exec" inputmode="url" autocomplete="off"></label>
       <button class="btn primary block" type="button" id="connect">Подключить</button>
@@ -806,7 +815,11 @@ document.getElementById('syncBody').addEventListener('click', async e=>{
 });
 async function connect(url){
   const err=document.getElementById('connErr'), btn=document.getElementById('connect');
-  if(!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(url)){ if(err) err.textContent='Нужна ссылка вида https://script.google.com/macros/s/…/exec'; return false; }
+  url = url.replace(/\s+/g,'');
+  const bad = !/^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/(exec|dev)$/.test(url)
+    ? (/\/home\/|\/edit|projects/.test(url) ? 'Это ссылка на редактор скрипта. Нужен «URL веб-приложения» из окна «Новое развертывание» — он заканчивается на /exec.' : 'Нужна ссылка вида https://script.google.com/macros/s/…/exec')
+    : /\/dev$/.test(url) ? 'Это тестовая ссылка (/dev) — она работает только у вас. Нужна ссылка из «Развернуть → Новое развертывание», заканчивается на /exec.' : '';
+  if(bad){ if(err) err.textContent=bad; return false; }
   if(btn){ btn.disabled=true; btn.textContent='Проверяю…'; }
   const prev=sync; sync={url};
   try{ await api(); }

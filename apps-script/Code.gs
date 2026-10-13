@@ -5,8 +5,21 @@
  * Данные хранятся в вашей таблице: лист «Таблица» — для чтения, лист «data» — служебный.
  */
 
+var VERSION = 2;
+
 function doGet() {
-  return out_({ ok: true, data: read_() });
+  try {
+    return out_({ ok: true, version: VERSION, data: read_() });
+  } catch (err) {
+    return out_({ ok: false, error: String(err) });
+  }
+}
+
+/* Запустите один раз в редакторе (кнопка ▶ «Выполнить»), чтобы выдать разрешения и проверить работу. */
+function setup() {
+  var ss = ss_();
+  sheet_('data');
+  Logger.log('Готово. Данные хранятся в таблице: ' + ss.getUrl());
 }
 
 function doPost(e) {
@@ -54,8 +67,20 @@ function merge_(a, b) {
   return { v: 2, events: events, items: pick(a.items, b.items), deleted: del };
 }
 
-function sheet_(name) {
+/* Таблица, к которой привязан скрипт. Если скрипт создан отдельно — создаём таблицу сами. */
+function ss_() {
   var ss = SpreadsheetApp.getActive();
+  if (ss) return ss;
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty('SHEET_ID');
+  if (id) return SpreadsheetApp.openById(id);
+  ss = SpreadsheetApp.create('Бюджет свадьбы');
+  props.setProperty('SHEET_ID', ss.getId());
+  return ss;
+}
+
+function sheet_(name) {
+  var ss = ss_();
   return ss.getSheetByName(name) || ss.insertSheet(name);
 }
 
