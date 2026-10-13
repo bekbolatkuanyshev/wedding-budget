@@ -718,7 +718,10 @@ document.getElementById('fileIn').onchange = async e=>{
 };
 
 /* ================= Синхронизация (Google Таблица) ================= */
+/* Общее облако по умолчанию: все устройства подключаются автоматически */
+const DEFAULT_SYNC_URL = '';
 let sync = (()=>{ try{ return JSON.parse(ls.get(SYNC_KEY))||{}; }catch(e){ return {}; } })();
+if(!sync.url && DEFAULT_SYNC_URL && ls.get('wedding-budget-unlinked')!=='1'){ sync={url:DEFAULT_SYNC_URL}; ls.set(DIRTY_KEY,'1'); }
 let syncState='off', syncErr='', lastSync=0, inflight=false, again=false, pushTimer;
 const isDirty = () => ls.get(DIRTY_KEY)==='1';
 function markDirty(){ ls.set(DIRTY_KEY,'1'); if(sync.url){ setSync(navigator.onLine===false?'err':'busy'); clearTimeout(pushTimer); pushTimer=setTimeout(syncNow,700); } }
@@ -833,7 +836,7 @@ document.getElementById('syncBody').addEventListener('click', async e=>{
   if(id==='shareLink'){ navigator.share({title:'Бюджет свадьбы', url:shareLink()}).catch(()=>{}); }
   if(id==='syncAgain'){ syncNow(); }
   if(id==='unlink' && await ask('Отключить облако на этом устройстве? Данные в таблице и на других телефонах останутся.','Отключить')){
-    sync={}; ls.del(SYNC_KEY); setSync('off'); renderSyncBody(); render();
+    sync={}; ls.del(SYNC_KEY); if(DEFAULT_SYNC_URL) ls.set('wedding-budget-unlinked','1'); setSync('off'); renderSyncBody(); render();
   }
   if(id==='copyCode'){
     const box=document.getElementById('codeBox');
@@ -857,7 +860,7 @@ async function connect(url){
   const prev=sync; sync={url};
   try{ await api(); }
   catch(e){ sync=prev; if(err) err.textContent='Не удалось подключиться: '+e.message; if(btn){ btn.disabled=false; btn.textContent='Подключить'; } return false; }
-  ls.set(SYNC_KEY, JSON.stringify(sync)); ls.set(DIRTY_KEY,'1');
+  ls.set(SYNC_KEY, JSON.stringify(sync)); ls.set(DIRTY_KEY,'1'); ls.del('wedding-budget-unlinked');
   await syncNow(); render(); renderSyncBody(); toast('Облако подключено');
   return true;
 }
