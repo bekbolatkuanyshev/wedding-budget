@@ -174,7 +174,7 @@ footer{font-size:13px;color:var(--muted);text-align:center;margin-top:28px}
 @media (max-width:760px){#giftDlg .dlg-f .right [data-close]{display:none}}
 
 /* Gift rows */
-.gthead,.grow{display:grid;grid-template-columns:minmax(0,1.6fr) 150px minmax(0,1.4fr) 150px;gap:12px;align-items:center;padding:0 18px}
+.gthead,.grow{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1.4fr) 150px;gap:12px;align-items:center;padding:0 18px}
 .gthead{font-size:12px;color:var(--muted);padding-top:10px;padding-bottom:10px;border-bottom:1px solid var(--line)}
 .grow{width:100%;min-height:56px;border:0;border-bottom:1px solid var(--line);background:none;text-align:left;cursor:pointer;padding-top:10px;padding-bottom:10px}
 .grow:hover{background:var(--accent-soft)}
@@ -182,21 +182,12 @@ footer{font-size:13px;color:var(--muted);text-align:center;margin-top:28px}
 .g-name small{display:block;font-weight:400;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .g-item{font-size:14px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .g-amt{text-align:right;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
-.side{display:inline-block;font-size:12.5px;font-weight:500;padding:4px 10px;border-radius:99px;white-space:nowrap}
-.side.groom{background:#e6eef8;color:#2d5a8c} .side.bride{background:#f8e6ee;color:#9a3a63} .side.none{background:var(--neutral-soft);color:var(--muted)}
-@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .side.groom{background:#1f2c3b;color:#93b8e3} :root:not([data-theme="light"]) .side.bride{background:#3a2130;color:#e7a0c0} }
 .g-sub{display:none}
-.seg{display:flex;gap:6px}
-.seg label{flex:1;position:relative}
-.seg input{position:absolute;opacity:0;pointer-events:none}
-.seg span{display:flex;align-items:center;justify-content:center;min-height:44px;border:1px solid var(--line-strong);border-radius:12px;font-size:14.5px;cursor:pointer;text-align:center;padding:0 6px;background:var(--bg)}
-.seg input:checked+span{background:var(--ink);border-color:var(--ink);color:var(--bg)}
-.seg input:focus-visible+span{box-shadow:var(--focus)}
 @media (max-width:760px){
   .gthead{display:none}
   .grow{grid-template-columns:1fr auto;grid-template-areas:"name amt" "sub sub";gap:4px 12px;padding:13px 16px}
   .g-name{grid-area:name} .g-amt{grid-area:amt}
-  .g-side,.g-item{display:none}
+  .g-item{display:none}
   .g-sub{display:flex;grid-area:sub;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--muted)}
 }
 
@@ -344,13 +335,6 @@ dialog::backdrop{background:rgba(25,15,5,.5)}
   <div class="dlg-b">
     <label class="field"><span>Кто подарил</span><input name="name" required autocomplete="off" placeholder="Например: Асқар аға и Гүлнар апа" enterkeyhint="next"></label>
     <label class="field"><span>Мероприятие</span><select name="event" id="gEvent"></select></label>
-    <div class="field"><span>Чья сторона</span>
-      <div class="seg" role="radiogroup">
-        <label><input type="radio" name="side" value="groom"><span>Жениха</span></label>
-        <label><input type="radio" name="side" value="bride"><span>Невесты</span></label>
-        <label><input type="radio" name="side" value=""><span>Не указано</span></label>
-      </div>
-    </div>
     <label class="field"><span>Сумма деньгами</span><div class="money-in"><input name="amount" inputmode="numeric" data-money autocomplete="off" placeholder="0" enterkeyhint="next"><i>₸</i></div></label>
     <label class="field"><span>Подарок вещью</span><input name="item" autocomplete="off" placeholder="Например: ковёр, золотые серьги, посуда"></label>
     <label class="field"><span>Заметка</span><textarea name="note" rows="2" placeholder="Родство, откуда, что важно не забыть"></textarea></label>
@@ -467,7 +451,6 @@ const STATUS = { planned:'Запланировано', advance:'Аванс вн�
 const isGift = i => i.kind === 'gift';
 const EXP = () => state.items.filter(i=>!isGift(i));
 const GIFTS = () => state.items.filter(isGift);
-const SIDE = { groom:'Сторона жениха', bride:'Сторона невесты', '':'Не указано' };
 function totals(items){
   return items.reduce((t,it)=>{
     t.planned+=it.planned||0; t.cost+=cost(it); t.paid+=paid(it); t.left+=left(it);
@@ -549,26 +532,21 @@ const gAmt = g => Number(g.amount)||0;
 function renderGifts(){
   const all = GIFTS(), total = all.reduce((a,g)=>a+gAmt(g),0);
   const withItems = all.filter(g=>g.item).length;
-  const bySide = k => all.filter(g=>(g.side||'')===k).reduce((a,g)=>a+gAmt(g),0);
   document.getElementById('summary').innerHTML = `
     <div class="card hero">
       <div class="lbl">Подарено деньгами</div>
       <div class="big money">${num(total)} ₸</div>
       <div class="meta" style="margin-top:0"><span>${all.length} ${plural(all.length,'запись','записи','записей')}${withItems?` · ${withItems} ${plural(withItems,'подарок','подарка','подарков')} вещами`:''}</span></div>
-      <div class="meta"><span>Сторона жениха <strong>${fmt(bySide('groom'))}</strong></span><span>Сторона невесты <strong>${fmt(bySide('bride'))}</strong></span></div>
     </div>
     <div class="card stats" style="grid-template-rows:none">
       ${state.events.map(ev=>{ const l=all.filter(g=>g.event===ev.id); return `<div class="stat"><span class="lbl">${esc(ev.name)} · ${l.length}</span><span class="v">${fmt(l.reduce((a,g)=>a+gAmt(g),0))}</span></div>`; }).join('')}
     </div>`;
 
-  const counts = {'':all.length, groom:0, bride:0};
-  all.forEach(g=>{ if(g.side in counts && g.side) counts[g.side]++; });
-  document.getElementById('chips').innerHTML = [['','Все'],['groom','Жениха'],['bride','Невесты']]
-    .map(([k,l])=>`<button type="button" class="chip-f" data-gf="${k}" aria-pressed="${gFilter===k}">${l}<b>${counts[k]}</b></button>`).join('');
+  document.getElementById('chips').innerHTML = '';
 
   const q = document.getElementById('q').value.trim().toLowerCase();
-  const match = g => (!gFilter || g.side===gFilter) && (!q || [g.name,g.item,g.note].join(' ').toLowerCase().includes(q));
-  const filtering = !!(gFilter || q);
+  const match = g => !q || [g.name,g.item,g.note].join(' ').toLowerCase().includes(q);
+  const filtering = !!q;
 
   const html = state.events.map(ev=>{
     const evAll = all.filter(g=>g.event===ev.id), list = evAll.filter(match);
@@ -579,7 +557,7 @@ function renderGifts(){
         <div class="ev-top"><h2 id="gh-${ev.id}">${esc(ev.name)}</h2></div>
         <div class="ev-nums" style="margin-bottom:0"><span>Деньгами <b class="money">${fmtT(sum)}</b></span><span>${list.length} ${plural(list.length,'запись','записи','записей')}</span></div>
       </div>
-      <div class="gthead" aria-hidden="true"><span>Кто подарил</span><span>Сторона</span><span>Подарок вещью</span><span style="text-align:right">Сумма</span></div>
+      <div class="gthead" aria-hidden="true"><span>Кто подарил</span><span>Подарок вещью</span><span style="text-align:right">Сумма</span></div>
       ${list.map(giftRow).join('') || `<div class="empty">Пока никто не записан</div>`}
       ${filtering ? '' : `<button type="button" class="add-row" data-addg="${ev.id}"><span>+</span>Добавить подарок</button>`}
     </section>`;
@@ -588,13 +566,11 @@ function renderGifts(){
   document.getElementById('foot').textContent = `${all.length} ${plural(all.length,'запись','записи','записей')} о подарках`;
 }
 function giftRow(g){
-  const side = g.side||'', sideCls = side||'none';
   return `<button type="button" class="grow" data-gid="${g.id}">
     <span class="g-name">${esc(g.name)}${g.note?`<small>${esc(g.note)}</small>`:''}</span>
-    <span class="g-side"><span class="side ${sideCls}">${side?SIDE[side].replace('Сторона ',''):'—'}</span></span>
     <span class="g-item">${g.item?'🎁 '+esc(g.item):'<span class="dim">—</span>'}</span>
     <span class="g-amt">${gAmt(g)?fmtT(gAmt(g)):'<span class="dim" style="font-weight:400">—</span>'}</span>
-    <span class="g-sub">${side?`<span class="side ${sideCls}">${SIDE[side].replace('Сторона ','')}</span>`:''}${g.item?`<span>🎁 ${esc(g.item)}</span>`:''}</span>
+    ${g.item?`<span class="g-sub"><span>🎁 ${esc(g.item)}</span></span>`:''}
   </button>`;
 }
 function plural(n,a,b,c){ n=Math.abs(n)%100; const m=n%10; return n>10&&n<20?c:m>1&&m<5?b:m===1?a:c; }
@@ -822,8 +798,6 @@ function openGift(id, eventId, keep){
   const lastEv = ls.get('wedding-budget-gift-event');
   gForm.event.value = g?.event ?? eventId ?? (keep?.event) ?? (state.events.some(e=>e.id===lastEv)?lastEv:state.events[0]?.id) ?? '';
   gForm.name.value = g?.name ?? '';
-  const side = g ? (g.side||'') : (keep?.side ?? '');
-  gForm.querySelectorAll('[name=side]').forEach(r=>r.checked = r.value===side);
   gForm.amount.value = g && g.amount ? num(g.amount) : '';
   gForm.item.value = g?.item ?? '';
   gForm.note.value = g?.note ?? '';
@@ -839,7 +813,7 @@ function saveGift(){
   if(!name){ gForm.name.focus(); gForm.name.setCustomValidity('Кто подарил?'); gForm.name.reportValidity(); gForm.name.setCustomValidity(''); return null; }
   const amount=parseNum(gForm.amount.value), item=gForm.item.value.trim();
   if(!amount && !item){ gForm.amount.focus(); gForm.amount.setCustomValidity('Укажите сумму или подарок вещью'); gForm.amount.reportValidity(); gForm.amount.setCustomValidity(''); return null; }
-  const data={ kind:'gift', event:gForm.event.value, name, side:gForm.querySelector('[name=side]:checked')?.value||'', amount, item, note:gForm.note.value.trim() };
+  const data={ kind:'gift', event:gForm.event.value, name, amount, item, note:gForm.note.value.trim() };
   ls.set('wedding-budget-gift-event', data.event);
   const cur = editingGift && state.items.find(i=>i.id===editingGift);
   if(cur) Object.assign(cur, data, {updatedAt:Date.now()});
@@ -851,7 +825,7 @@ gForm.addEventListener('submit', e=>{ e.preventDefault(); if(saveGift()){ giftDl
 document.getElementById('giftMore').onclick = ()=>{
   const d=saveGift(); if(!d) return;
   toast(`«${d.name}» записан`);
-  openGift(null, null, {event:d.event, side:d.side});
+  openGift(null, null, {event:d.event});
 };
 document.getElementById('delGift').onclick = ()=>{
   const g=state.items.find(i=>i.id===editingGift); if(!g) return;
@@ -862,8 +836,8 @@ document.getElementById('delGift').onclick = ()=>{
 };
 function exportGiftsCsv(){
   const ev=Object.fromEntries(state.events.map(e=>[e.id,e.name]));
-  const lines=[['Мероприятие','Кто подарил','Сторона','Сумма','Подарок вещью','Заметка']];
-  state.events.forEach(e=>GIFTS().filter(g=>g.event===e.id).forEach(g=>lines.push([ev[g.event],g.name,SIDE[g.side||''],gAmt(g)||'',g.item||'',g.note||''])));
+  const lines=[['Мероприятие','Кто подарил','Сумма','Подарок вещью','Заметка']];
+  state.events.forEach(e=>GIFTS().filter(g=>g.event===e.id).forEach(g=>lines.push([ev[g.event],g.name,gAmt(g)||'',g.item||'',g.note||''])));
   download(`wedding-gifts-${today()}.csv`, '\ufeff'+lines.map(r=>r.map(c=>`"${String(c??'').replace(/"/g,'""')}"`).join(';')).join('\n'), 'text/csv');
 }
 

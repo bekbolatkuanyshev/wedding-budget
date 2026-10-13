@@ -124,17 +124,16 @@ function writeTable_(d) {
 function writeGifts_(d) {
   var s = sheet_('Подарки');
   s.clear();
-  var sides = { groom: 'Сторона жениха', bride: 'Сторона невесты' };
-  var rows = [['Мероприятие', 'Кто подарил', 'Сторона', 'Сумма', 'Подарок вещью', 'Заметка']];
+  var rows = [['Мероприятие', 'Кто подарил', 'Сумма', 'Подарок вещью', 'Заметка']];
   d.events.forEach(function (ev) {
     d.items.filter(function (it) { return it.event === ev.id && it.kind === 'gift'; }).forEach(function (g) {
-      rows.push([txt_(ev.name), txt_(g.name || ''), sides[g.side] || '', Number(g.amount) || '', txt_(g.item || ''), txt_(g.note || '')]);
+      rows.push([txt_(ev.name), txt_(g.name || ''), Number(g.amount) || '', txt_(g.item || ''), txt_(g.note || '')]);
     });
   });
   s.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
   s.getRange(1, 1, 1, rows[0].length).setFontWeight('bold');
   s.setFrozenRows(1);
-  if (rows.length > 1) s.getRange(2, 4, rows.length - 1, 1).setNumberFormat('#,##0');
+  if (rows.length > 1) s.getRange(2, 3, rows.length - 1, 1).setNumberFormat('#,##0');
 }
 
 /* текст, начинающийся с = + - @, таблица иначе посчитает формулой */
