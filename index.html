@@ -719,7 +719,7 @@ document.getElementById('fileIn').onchange = async e=>{
 
 /* ================= Синхронизация (Google Таблица) ================= */
 /* Общее облако по умолчанию: все устройства подключаются автоматически */
-const DEFAULT_SYNC_URL = '';
+const DEFAULT_SYNC_URL = 'https://script.google.com/macros/s/AKfycby_yKKQzBmAYzKx0OF-F6_0ilTY50wEcQGEQQKguRiqBiRGexc6rUpzNdBdaHd30xT1/exec';
 let sync = (()=>{ try{ return JSON.parse(ls.get(SYNC_KEY))||{}; }catch(e){ return {}; } })();
 if(!sync.url && DEFAULT_SYNC_URL && ls.get('wedding-budget-unlinked')!=='1'){ sync={url:DEFAULT_SYNC_URL}; ls.set(DIRTY_KEY,'1'); }
 let syncState='off', syncErr='', lastSync=0, inflight=false, again=false, pushTimer;
