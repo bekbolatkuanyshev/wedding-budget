@@ -177,8 +177,8 @@ footer{font-size:12px;color:var(--muted);margin-top:30px;line-height:1.6}
 const KEY = 'wedding-budget-v1';
 const DEFAULT = {
   events: [
-    { id: 'wedding', name: '💒 Свадьба' },
-    { id: 'syrga', name: '💍 Сырға салу' }
+    { id: 'syrga', name: '💍 Сырға салу' },
+    { id: 'wedding', name: '💒 Свадьба' }
   ],
   items: [
     ['wedding','🍽️','Ресторан',4050000],
@@ -216,6 +216,12 @@ let state;
 function load(){
   try { const s = localStorage.getItem(KEY); state = s ? JSON.parse(s) : clone(DEFAULT); }
   catch(e){ state = clone(DEFAULT); }
+  // разовый перенос: сырға салу показываем первым
+  if(!state.syrgaFirst){
+    const i = state.events.findIndex(e=>e.id==='syrga');
+    if(i>0) state.events.unshift(...state.events.splice(i,1));
+    state.syrgaFirst = true; save();
+  }
 }
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
 
