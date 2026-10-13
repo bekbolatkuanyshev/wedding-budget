@@ -777,6 +777,11 @@ async function loadCode(){
   }
   const box=document.getElementById('codeBox'); if(box && codeText) box.value=codeText;
 }
+function fallbackCopy(box){
+  let ok=false;
+  try{ box.focus(); box.select(); box.setSelectionRange(0, box.value.length); ok=document.execCommand('copy'); }catch(_){}
+  toast(ok ? 'Код скопирован — вставьте его в Apps Script' : 'Код выделен — нажмите Cmd+C (или «Скопировать» в меню)');
+}
 function openSync(){ renderSyncBody(); document.getElementById('syncDlg').showModal(); if(!sync.url) loadCode(); }
 function renderSyncBody(){
   const b=document.getElementById('syncBody');
@@ -799,7 +804,7 @@ function renderSyncBody(){
         <li>Создайте новую Google-таблицу: <a href="https://sheets.new" target="_blank" rel="noopener">sheets.new</a>, назовите её «Бюджет свадьбы».</li>
         <li>В таблице откройте <b>Расширения → Apps Script</b>.</li>
         <li>Удалите всё в редакторе и вставьте код целиком:
-          <textarea id="codeBox" readonly spellcheck="false" style="display:block;width:100%;height:110px;margin:8px 0;padding:8px;border:1px solid var(--line-strong);border-radius:10px;background:var(--bg);color:var(--ink);font:12px/1.4 ui-monospace,Menlo,monospace;white-space:pre;resize:vertical">${esc(codeText||'Загружаю код…')}</textarea>
+          <textarea id="codeBox" spellcheck="false" autocapitalize="off" autocorrect="off" style="display:block;width:100%;height:110px;margin:8px 0;padding:8px;border:1px solid var(--line-strong);border-radius:10px;background:var(--bg);color:var(--ink);font:12px/1.4 ui-monospace,Menlo,monospace;white-space:pre;resize:vertical">${esc(codeText||'Загружаю код…')}</textarea>
           <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" type="button" id="copyCode" style="min-height:38px;font-size:14px">Скопировать код</button>
           <a class="btn" style="min-height:38px;font-size:14px;text-decoration:none" href="${CODE_RAW}" target="_blank" rel="noopener">Открыть код отдельно</a></span></li>
         <li>Сохраните (💾), вверху выберите функцию <b>setup</b> и нажмите <b>▶ Выполнить</b>. Разрешите доступ: «Проверить разрешения» → ваш аккаунт → «Дополнительно» → «Перейти в проект» → «Разрешить».</li>
@@ -822,11 +827,11 @@ document.getElementById('syncBody').addEventListener('click', async e=>{
   if(id==='copyCode'){
     const box=document.getElementById('codeBox');
     if(!codeText){ window.open(CODE_RAW,'_blank'); return; }
+    box.value=codeText;
     let ok=false;
-    /* копируем синхронно в обработчике нажатия — так работает и в Safari */
-    try{ box.focus(); box.select(); box.setSelectionRange(0, box.value.length); ok=document.execCommand('copy'); }catch(_){}
-    if(!ok){ try{ await navigator.clipboard.writeText(codeText); ok=true; }catch(_){} }
-    toast(ok ? 'Код скопирован — вставьте его в Apps Script' : 'Не удалось скопировать: выделите текст в поле и скопируйте вручную');
+    /* Сначала современный способ (вызывается прямо в нажатии, без ожиданий — нужно для Safari) */
+    try{ if(navigator.clipboard && window.isSecureContext){ navigator.clipboard.writeText(codeText).then(()=>toast('Код скопирован — вставьте его в Apps Script'), ()=>fallbackCopy(box)); ok=true; } }catch(_){}
+    if(!ok) fallbackCopy(box);
   }
   if(id==='connect'){ connect(document.getElementById('syncUrl').value.trim()); }
 });
