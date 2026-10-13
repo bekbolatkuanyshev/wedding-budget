@@ -783,12 +783,22 @@ function fallbackCopy(box){
   toast(ok ? 'Код скопирован — вставьте его в Apps Script' : 'Код выделен — нажмите Cmd+C (или «Скопировать» в меню)');
 }
 function openSync(){ renderSyncBody(); document.getElementById('syncDlg').showModal(); if(!sync.url) loadCode(); }
+let qrLib;
+function drawQr(){
+  const el=document.getElementById('qr'); if(!el || !sync.url) return;
+  const draw=()=>{ el.innerHTML=''; try{ new QRCode(el,{text:shareLink(),width:220,height:220,correctLevel:QRCode.CorrectLevel.M}); }catch(_){ el.textContent='Не удалось построить QR-код — используйте ссылку ниже'; } };
+  if(window.QRCode) return draw();
+  el.textContent='Загружаю QR-код…';
+  qrLib = qrLib || new Promise((res,rej)=>{ const sc=document.createElement('script'); sc.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js'; sc.onload=res; sc.onerror=rej; document.head.appendChild(sc); });
+  qrLib.then(draw, ()=>{ el.textContent='QR-код не загрузился — используйте ссылку ниже'; qrLib=null; });
+}
 function renderSyncBody(){
   const b=document.getElementById('syncBody');
   if(sync.url){
     b.innerHTML = `
       <div class="ok-box">${syncState==='err'?'⚠️ Облако подключено, но сейчас недоступно: '+esc(syncErr):'✓ Облако подключено. Изменения сохраняются автоматически и видны на всех подключённых устройствах.'}</div>
-      <p class="note"><b style="color:var(--ink)">Подключить другой телефон:</b> отправьте ему эту ссылку (например, в WhatsApp) и откройте её там один раз.</p>
+      <p class="note"><b style="color:var(--ink)">Подключить телефон:</b> наведите камеру телефона на QR-код и откройте ссылку. Или отправьте ссылку ниже, например, в WhatsApp. Открыть её нужно один раз, в том браузере, где вы будете пользоваться сайтом (Safari или Chrome).</p>
+      <div id="qr" style="display:flex;justify-content:center;padding:14px;background:#fff;border-radius:14px;border:1px solid var(--line);margin-bottom:14px;min-height:60px"></div>
       <label class="field"><span>Ссылка для другого телефона</span><input readonly value="${esc(shareLink())}" id="shareIn"></label>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
         <button class="btn primary" type="button" id="copyLink">Скопировать ссылку</button>
@@ -797,6 +807,7 @@ function renderSyncBody(){
       </div>
       <p class="note">Ссылку давайте только тем, кто ведёт бюджет: с ней можно видеть и менять данные.</p>
       <button class="btn danger ghost" type="button" id="unlink">Отключить на этом устройстве</button>`;
+    drawQr();
   } else {
     b.innerHTML = `
       <p class="note">Данные будут храниться в вашей Google-таблице — бесплатно и доступно только вам. Настраивается один раз, примерно 5 минут, нужен компьютер.</p>
