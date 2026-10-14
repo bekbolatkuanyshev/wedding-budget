@@ -195,6 +195,30 @@ footer{font-size:13px;color:var(--muted);text-align:center;margin-top:28px}
   .g-sub{display:flex;grid-area:sub;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--muted)}
 }
 
+/* Личный раздел */
+.lock{max-width:440px;margin:4px auto 20px;padding:28px 22px}
+.lock-ic{font-size:40px;text-align:center;line-height:1}
+.lock h2{text-align:center;margin:10px 0 8px}
+.lock .intro{text-align:center}
+.check-row{display:flex;align-items:center;gap:10px;font-size:15px;min-height:44px;cursor:pointer}
+.check-row input,.kv input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent);flex:none;margin:0}
+.kv{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line);font-size:15px;min-height:52px}
+.kv-l{display:flex;align-items:center;gap:10px;min-width:0}
+label.kv{cursor:pointer}
+label.kv:hover{background:var(--accent-soft)}
+.kv b{font-weight:600;white-space:nowrap}
+.pset{padding:16px 18px 2px}
+.pset .toggle{margin-bottom:14px}
+.p-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:4px 0 8px}
+.linkish{border:0;background:none;color:var(--accent);font:inherit;font-weight:500;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px}
+.hero .plan{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:14px;color:var(--muted)}
+.hero .plan strong{color:var(--ink);font-weight:600}
+@media (max-width:760px){
+  .tabs button{font-size:14px;gap:4px;padding:0 4px;white-space:nowrap}
+  .tabs:has(#tab-private:not([hidden])) b{display:none}
+  #pDlg .dlg-f .right [data-close]{display:none}
+}
+
 /* Dialogs */
 dialog{border:0;padding:0;width:min(560px,calc(100vw - 32px));max-height:calc(100dvh - 40px);border-radius:20px;background:var(--card);color:var(--ink);box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:hidden}
 dialog[open]{display:flex;flex-direction:column;overflow-x:hidden}
@@ -265,6 +289,7 @@ dialog::backdrop{background:rgba(25,15,5,.5)}
         <button class="btn icon ghost" id="menuBtn" type="button" aria-label="Меню" aria-haspopup="true" aria-expanded="false">⋯</button>
         <div class="menu" id="menu" role="menu">
           <button type="button" data-act="reload" role="menuitem">🔄 Обновить данные</button>
+          <button type="button" data-act="private" role="menuitem">🔒 Личный раздел</button>
           <button type="button" data-act="sync" role="menuitem">☁️ Синхронизация устройств</button>
           <button type="button" data-act="event" role="menuitem">➕ Новое мероприятие</button>
           <hr>
@@ -285,6 +310,7 @@ dialog::backdrop{background:rgba(25,15,5,.5)}
   <nav class="tabs" role="tablist" aria-label="Разделы">
     <button type="button" role="tab" data-tab="budget" id="tab-budget">💰 Расходы</button>
     <button type="button" role="tab" data-tab="gifts" id="tab-gifts">🎁 Подарки <b id="giftCount">0</b></button>
+    <button type="button" role="tab" data-tab="private" id="tab-private" hidden>🔒 Личное</button>
   </nav>
 
   <section class="summary" id="summary" aria-label="Итоги"></section>
@@ -350,6 +376,34 @@ dialog::backdrop{background:rgba(25,15,5,.5)}
     <button type="button" class="btn ghost" id="giftMore">Сохранить и ещё</button>
     <div class="right"><button type="button" class="btn" data-close>Отмена</button><button type="submit" class="btn primary">Сохранить</button></div>
   </div>
+</form></dialog>
+
+<!-- Личный раздел: запись -->
+<dialog id="pDlg" aria-labelledby="pTitle"><form id="pItemForm" novalidate style="display:contents">
+  <div class="dlg-h"><h3 id="pTitle">Запись</h3><button type="button" class="btn icon ghost" data-close aria-label="Закрыть">×</button></div>
+  <div class="dlg-b">
+    <label class="field"><span>Название</span><input name="name" required autocomplete="off" enterkeyhint="next"></label>
+    <label class="field"><span>Сумма</span><div class="money-in"><input name="amount" inputmode="numeric" data-money autocomplete="off" placeholder="0"><i>₸</i></div></label>
+    <label class="field" id="pDateF"><span>Когда придут</span><input type="date" name="date"></label>
+    <label class="toggle" id="pPaidF"><span>Уже оплачено<small>Оплаченное не входит в сумму, которую нужно собрать</small></span><input type="checkbox" name="paid" role="switch"></label>
+    <label class="field"><span>Заметка</span><textarea name="note" rows="2"></textarea></label>
+  </div>
+  <div class="dlg-f">
+    <button type="button" class="btn danger ghost" id="pDel">Удалить</button>
+    <button type="button" class="btn ghost" id="pGot">Получено</button>
+    <div class="right"><button type="button" class="btn" data-close>Отмена</button><button type="submit" class="btn primary">Сохранить</button></div>
+  </div>
+</form></dialog>
+
+<!-- Личный раздел: новый пароль -->
+<dialog id="pwDlg" aria-labelledby="pwTitle" style="width:min(420px,calc(100vw - 32px))"><form id="pwForm" novalidate style="display:contents">
+  <div class="dlg-h"><h3 id="pwTitle">Новый пароль</h3><button type="button" class="btn icon ghost" data-close aria-label="Закрыть">×</button></div>
+  <div class="dlg-b">
+    <label class="field"><span>Новый пароль</span><input type="password" name="p1" autocomplete="new-password"></label>
+    <label class="field"><span>Повторите пароль</span><input type="password" name="p2" autocomplete="new-password"></label>
+    <p class="warn-line" id="pwErr"></p>
+  </div>
+  <div class="dlg-f"><div class="right"><button type="button" class="btn" data-close>Отмена</button><button type="submit" class="btn primary">Сменить</button></div></div>
 </form></dialog>
 
 <!-- Мероприятие -->
@@ -455,7 +509,7 @@ const left = it => it.closed ? 0 : Math.max(cost(it)-paid(it),0);
 const status = it => it.closed ? 'closed' : paid(it)>0 ? 'advance' : 'planned';
 const STATUS = { planned:'Запланировано', advance:'Аванс внесён', closed:'Закрыто' };
 const isGift = i => i.kind === 'gift';
-const EXP = () => state.items.filter(i=>!isGift(i));
+const EXP = () => state.items.filter(i=>!i.kind);
 const GIFTS = () => state.items.filter(isGift);
 function totals(items){
   return items.reduce((t,it)=>{
@@ -475,10 +529,11 @@ const pct = (a,b) => b ? Math.min(100, a/b*100) : 0;
 
 /* ================= Отрисовка ================= */
 let filter = '', gFilter = '';
-let tab = (()=>{ const h=location.hash.replace('#',''); return h==='gifts'||h==='budget' ? h : (ls.get('wedding-budget-tab')||'budget'); })();
+const TABS = ['budget','gifts','private'];
+let tab = (()=>{ const h=location.hash.replace('#',''); return TABS.includes(h) ? h : (TABS.includes(ls.get('wedding-budget-tab')) ? ls.get('wedding-budget-tab') : 'budget'); })();
 function setTab(t){
   tab=t; ls.set('wedding-budget-tab',t);
-  history.replaceState(null,'',location.pathname+location.search+(t==='gifts'?'#gifts':''));
+  history.replaceState(null,'',location.pathname+location.search+(t==='budget'?'':'#'+t));
   document.getElementById('q').value=''; render(); scrollTo({top:0});
 }
 function render(){
@@ -488,6 +543,13 @@ function render(){
   document.getElementById('addItem').textContent = addLbl; document.getElementById('fab').textContent = addLbl;
   document.getElementById('q').placeholder = tab==='gifts' ? 'Поиск по имени или подарку' : 'Поиск затраты';
   renderBanner();
+  const priv = tab==='private';
+  document.getElementById('tab-private').hidden = !(priv || ls.get(PTAB_LS)==='1');
+  document.querySelector('.filters').hidden = priv;
+  document.getElementById('fab').hidden = priv;
+  document.getElementById('addItem').hidden = priv;
+  pCheck();
+  if(priv) return renderPrivate();
   if(tab==='gifts') return renderGifts();
   const items = EXP();
   const T = totals(items), p = pct(T.paid,T.cost);
@@ -609,6 +671,15 @@ function renderBanner(){
 
 /* ================= События списка ================= */
 document.getElementById('events').addEventListener('click', e=>{
+  const padd=e.target.closest('[data-padd]'), prow=e.target.closest('[data-pid]'), go=e.target.closest('[data-goto]');
+  if(padd) return openP(padd.dataset.padd);
+  if(prow) return openP(prow.dataset.p, prow.dataset.pid);
+  if(go) return setTab(go.dataset.goto);
+  if(e.target.closest('#pLock')) return pLock();
+  if(e.target.closest('#pPass')) return openPw();
+  if(e.target.closest('#pForget')) return pForgetDevice();
+  if(e.target.closest('#pReset')) return pResetVault();
+  if(e.target.closest('#pSetDate')){ document.getElementById('pDate')?.focus(); document.getElementById('pDate')?.showPicker?.(); return; }
   const row=e.target.closest('.row'), add=e.target.closest('[data-add]'), ev=e.target.closest('[data-ev]');
   const grow=e.target.closest('[data-gid]'), addg=e.target.closest('[data-addg]');
   if(grow) openGift(grow.dataset.gid);
@@ -639,6 +710,7 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape' && menu.classList.
 menu.addEventListener('click', async e=>{
   const a=e.target.closest('[data-act]')?.dataset.act; if(!a) return; toggleMenu(false);
   if(a==='reload') reloadData();
+  if(a==='private') setTab('private');
   if(a==='sync') openSync();
   if(a==='event') openEvent(null);
   if(a==='csv') exportCsv();
@@ -651,7 +723,7 @@ menu.addEventListener('click', async e=>{
     const f=fresh();
     f.items.forEach(x=>x.updatedAt=t);
     f.events.forEach(x=>{ if(!state.events.some(e=>e.id===x.id)) state.events.push(touch(x)); });
-    state.items=[...GIFTS(), ...f.items];
+    state.items=[...state.items.filter(i=>i.kind), ...f.items];
     migrate(state); commit(); toast('План сброшен', ()=>restore(snap));
   }
 });
@@ -848,6 +920,289 @@ function exportGiftsCsv(){
   state.events.forEach(e=>GIFTS().filter(g=>g.event===e.id).forEach(g=>lines.push([ev[g.event],g.name,gAmt(g)||'',g.item||'',g.note||''])));
   download(`wedding-gifts-${today()}.csv`, '\ufeff'+lines.map(r=>r.map(c=>`"${String(c??'').replace(/"/g,'""')}"`).join(';')).join('\n'), 'text/csv');
 }
+
+/* ================= Личный раздел (зашифрован паролем) ================= */
+/* Данные шифруются на устройстве (AES-GCM, ключ из пароля через PBKDF2).
+   В облако и на другие устройства уходит только зашифрованный текст. */
+const PKEY_LS='wedding-budget-pkey', PTAB_LS='wedding-budget-private';
+let pKey=null, pData=null, pVaultAt=0, pBusy=false, pTried=false;
+const vaultItem = () => state.items.find(i=>i.kind==='vault');
+const tenc = new TextEncoder(), tdec = new TextDecoder();
+const toB64 = buf => { const a=new Uint8Array(buf); let s=''; for(let i=0;i<a.length;i+=0x8000) s+=String.fromCharCode.apply(null, a.subarray(i,i+0x8000)); return btoa(s); };
+const fromB64 = s => Uint8Array.from(atob(s), c=>c.charCodeAt(0));
+async function deriveKey(pass, salt){
+  const base = await crypto.subtle.importKey('raw', tenc.encode(pass), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2', salt, iterations:250000, hash:'SHA-256'}, base, {name:'AES-GCM', length:256}, true, ['encrypt','decrypt']);
+}
+async function sealData(key, obj){
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, tenc.encode(JSON.stringify(obj)));
+  return { iv:toB64(iv), ct:toB64(ct) };
+}
+async function openData(key, v){
+  const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv:fromB64(v.iv)}, key, fromB64(v.ct));
+  return JSON.parse(tdec.decode(pt));
+}
+const pFresh = () => ({ v:1, accounts:[], incomes:[], personal:[], targetDate:'', includeGifts:false, skipEvents:[] });
+const pNorm = d => ({ ...pFresh(), ...(d||{}), accounts:d?.accounts||[], incomes:d?.incomes||[], personal:d?.personal||[], skipEvents:d?.skipEvents||[] });
+const ss = { get(k){ try{ return sessionStorage.getItem(k); }catch(_){ return null; } }, set(k,v){ try{ sessionStorage.setItem(k,v); }catch(_){} }, del(k){ try{ sessionStorage.removeItem(k); }catch(_){} } };
+async function rememberKey(key, persist){
+  const raw = toB64(await crypto.subtle.exportKey('raw', key));
+  ss.set(PKEY_LS, raw);
+  if(persist) ls.set(PKEY_LS, raw); else ls.del(PKEY_LS);
+}
+const storedKey = () => ss.get(PKEY_LS) || ls.get(PKEY_LS);
+function forgetKey(){ ss.del(PKEY_LS); ls.del(PKEY_LS); }
+async function tryStoredKey(){
+  const raw=storedKey(), v=vaultItem(); if(!raw || !v) return false;
+  try{
+    const key = await crypto.subtle.importKey('raw', fromB64(raw), 'AES-GCM', true, ['encrypt','decrypt']);
+    pData = pNorm(await openData(key, v)); pKey = key; pVaultAt = v.updatedAt; return true;
+  }catch(_){ forgetKey(); return false; }
+}
+/* Следим за изменениями с других устройств: расшифровываем заново или блокируем, если сменили пароль */
+function pCheck(){
+  const v = vaultItem();
+  if(pKey && !v){ pKey=null; pData=null; forgetKey(); return; }
+  if(!pKey && v && !pTried && storedKey()){ pTried=true; tryStoredKey().then(ok=>{ if(ok) render(); }); return; }
+  if(pKey && v && v.updatedAt!==pVaultAt && !pBusy){
+    pBusy=true; const at=v.updatedAt;
+    openData(pKey, v).then(d=>{ pData=pNorm(d); pVaultAt=at; }, ()=>{ pKey=null; pData=null; forgetKey(); if(tab==='private') toast('Пароль сменили на другом устройстве — введите новый'); })
+      .finally(()=>{ pBusy=false; if(tab==='private') render(); });
+  }
+}
+async function pSave(){
+  if(!pKey || !pData) return;
+  const v = vaultItem(); if(!v) return;
+  Object.assign(v, await sealData(pKey, pData), {updatedAt:Date.now()});
+  pVaultAt = v.updatedAt; commit();
+}
+const sumA = l => l.reduce((a,x)=>a+(Number(x.amount)||0),0);
+const dFmt = d => { const x=new Date(d+'T00:00'); return isNaN(x) ? d : x.toLocaleDateString('ru-RU',{day:'numeric', month:'long', ...(x.getFullYear()!==new Date().getFullYear()?{year:'numeric'}:{})}); };
+const PT = {
+  acc:{ key:'accounts', title:'💳 Мои деньги', hint:'Сколько есть прямо сейчас', add:'Добавить', empty:'Где и сколько денег: карта, наличные, депозит', dlg:'Деньги', dlgNew:'Где есть деньги', ph:'Например: Kaspi Gold, наличные, депозит' },
+  inc:{ key:'incomes', title:'📥 Ожидаемые поступления', hint:'Деньги, которые придут до свадьбы', add:'Добавить поступление', empty:'Зарплата, бонусы, долги, которые вернут', dlg:'Поступление', dlgNew:'Новое поступление', ph:'Например: зарплата за ноябрь, бонус' },
+  per:{ key:'personal', title:'🧾 Личные расходы', hint:'Только для вас — в общий бюджет не попадают', add:'Добавить расход', empty:'Расходы, которых нет в общем бюджете', dlg:'Личный расход', dlgNew:'Новый личный расход', ph:'Например: подарок невесте, путешествие' }
+};
+
+function lockHtml(isNew){
+  return `<section class="card lock"><form id="pForm" data-mode="${isNew?'new':'open'}" novalidate>
+    <div class="lock-ic" aria-hidden="true">🔒</div>
+    <h2>Личный раздел</h2>
+    <p class="note intro">${isNew
+      ? 'Спланируйте свои деньги: сколько есть, сколько ещё придёт, сколько нужно собрать и сколько откладывать в месяц. Раздел шифруется вашим паролем: без него данные не видны ни на сайте, ни в облаке.'
+      : 'Раздел защищён паролем. Его содержимое видно только тому, кто знает пароль.'}</p>
+    <label class="field"><span>${isNew?'Придумайте пароль':'Пароль'}</span><input type="password" name="p1" autocomplete="${isNew?'new-password':'current-password'}" enterkeyhint="${isNew?'next':'go'}"></label>
+    ${isNew?'<label class="field"><span>Повторите пароль</span><input type="password" name="p2" autocomplete="new-password" enterkeyhint="go"></label>':''}
+    <label class="check-row"><input type="checkbox" name="remember"> Запомнить на этом устройстве</label>
+    <p class="warn-line" id="pErr" role="alert"></p>
+    <button class="btn primary block" type="submit">${isNew?'Создать личный раздел':'Открыть'}</button>
+    ${isNew
+      ? '<p class="note intro" style="margin:12px 0 0">Запомните пароль: если его забыть, восстановить данные будет нельзя.</p>'
+      : '<button type="button" class="btn ghost block" id="pReset" style="margin-top:8px;color:var(--muted)">Забыли пароль?</button>'}
+  </form></section>`;
+}
+
+function renderPrivate(){
+  const v = vaultItem(), ev = document.getElementById('events');
+  if(!pKey || !pData){
+    document.getElementById('summary').innerHTML = '';
+    document.getElementById('foot').textContent = '';
+    const cur = document.getElementById('pForm');
+    /* не стираем поле пароля, пока человек его вводит */
+    if(!cur || cur.dataset.mode !== (v?'open':'new')) ev.innerHTML = lockHtml(!v);
+    return;
+  }
+  const P = pData, today0 = new Date(new Date().toDateString());
+  const evLeft = e => totals(EXP().filter(i=>i.event===e.id)).left;
+  const shared = state.events.filter(e=>!P.skipEvents.includes(e.id)).reduce((a,e)=>a+evLeft(e),0);
+  const personalLeft = sumA(P.personal.filter(x=>!x.paid));
+  const need = shared + personalLeft, have = sumA(P.accounts), expected = sumA(P.incomes);
+  const giftsMoney = GIFTS().reduce((a,g)=>a+gAmt(g),0), gifts = P.includeGifts ? giftsMoney : 0;
+  const covered = have + expected + gifts, gap = need - covered;
+  const p = need ? pct(covered, need) : 100;
+
+  let plan;
+  if(!P.targetDate) plan = `<button type="button" class="linkish" id="pSetDate">Укажите дату свадьбы</button>, и я посчитаю, сколько откладывать в месяц`;
+  else {
+    const days = Math.ceil((new Date(P.targetDate+'T00:00') - today0)/864e5);
+    if(days<=0) plan = `Дата свадьбы (${dFmt(P.targetDate)}) уже наступила`;
+    else {
+      const head = `До свадьбы ${days} ${plural(days,'день','дня','дней')} (${dFmt(P.targetDate)})`;
+      if(gap<=0) plan = `${head}. Собирать больше не нужно`;
+      else {
+        const months = days/30.44, weeks = Math.max(1, Math.ceil(days/7));
+        plan = months>=1
+          ? `${head}. Откладывайте ≈ <strong class="money">${fmtT(gap/months)}</strong> в месяц (${fmtT(gap/weeks)} в неделю)`
+          : `${head}. Откладывайте ≈ <strong class="money">${fmtT(gap/weeks)}</strong> в неделю`;
+      }
+    }
+  }
+  document.getElementById('summary').innerHTML = `
+    <div class="card hero">
+      <div class="lbl">${gap>0 ? 'Нужно собрать ещё' : 'Денег хватает · запас'}</div>
+      <div class="big money ${gap>0?'':'down'}">${num(Math.abs(gap))} ₸</div>
+      <div class="track" role="progressbar" aria-label="Покрыто" aria-valuenow="${Math.round(p)}" aria-valuemin="0" aria-valuemax="100"><b style="width:${p}%"></b></div>
+      <div class="meta"><span>Есть и ожидается <strong>${fmt(covered)}</strong> из ${fmt(need)}</span><span>${Math.round(p)}%</span></div>
+      <div class="plan">${plan}</div>
+    </div>
+    <div class="card stats" style="grid-template-rows:none">
+      <div class="stat"><span class="lbl">Нужно оплатить</span><span class="v">${fmt(need)}</span></div>
+      <div class="stat"><span class="lbl">Есть сейчас</span><span class="v">${fmt(have)}</span></div>
+      <div class="stat"><span class="lbl">Ожидается</span><span class="v">${fmt(expected)}</span></div>
+      ${P.includeGifts ? `<div class="stat"><span class="lbl">Подарки деньгами</span><span class="v">${fmt(gifts)}</span></div>` : ''}
+    </div>`;
+
+  const target = P.targetDate;
+  const row = (type, x) => {
+    let meta = '';
+    if(type==='inc' && x.date) meta = `📅 ${dFmt(x.date)}${target && x.date>target ? ' · <span class="up">после свадьбы</span>' : ''}`;
+    if(type==='per') meta = `<span class="chip ${x.paid?'closed':'planned'}">${x.paid?'Оплачено':'Не оплачено'}</span>`;
+    return `<button type="button" class="grow" data-p="${type}" data-pid="${x.id}">
+      <span class="g-name">${esc(x.name)}${x.note?`<small>${esc(x.note)}</small>`:''}</span>
+      <span class="g-item">${meta || '<span class="dim">—</span>'}</span>
+      <span class="g-amt${type==='per'&&x.paid?' dim':''}">${fmtT(Number(x.amount)||0)}</span>
+      ${meta ? `<span class="g-sub">${meta}</span>` : ''}
+    </button>`;
+  };
+  const section = (type, list, total) => { const c=PT[type]; return `<section class="card event">
+    <div class="ev-head"><div class="ev-top"><h2>${c.title}</h2><b class="money" style="font-size:17px">${fmtT(total)}</b></div>
+      <div class="ev-nums" style="margin-bottom:0">${c.hint}</div></div>
+    ${list.map(x=>row(type,x)).join('') || `<div class="empty">${c.empty}</div>`}
+    <button type="button" class="add-row" data-padd="${type}"><span>+</span>${c.add}</button>
+  </section>`; };
+  const incomes = [...P.incomes].sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
+
+  ev.innerHTML = `
+    <section class="card event">
+      <div class="ev-head"><div class="ev-top"><h2>🎯 Нужно оплатить</h2><b class="money" style="font-size:17px">${fmtT(need)}</b></div>
+        <div class="ev-nums" style="margin-bottom:0">Остатки из общего бюджета — отметьте, что оплачиваете вы</div></div>
+      ${state.events.map(e=>{ const on=!P.skipEvents.includes(e.id); return `<label class="kv"><span class="kv-l"><input type="checkbox" data-pev="${e.id}" ${on?'checked':''}><span>${esc(e.name)}</span></span><b class="money${on?'':' dim'}">${fmtT(evLeft(e))}</b></label>`; }).join('')}
+      <div class="kv"><span class="kv-l"><span style="width:20px;text-align:center">🧾</span><span>Личные расходы</span></span><b class="money">${fmtT(personalLeft)}</b></div>
+      <div class="pset">
+        <label class="field"><span>Дата свадьбы</span><input type="date" id="pDate" value="${esc(P.targetDate)}"></label>
+        <label class="toggle"><span>Учитывать подарки деньгами<small>${fmtT(giftsMoney)} во вкладке «Подарки». Включите, если эти деньги ещё не внесены в «Мои деньги»</small></span><input type="checkbox" id="pGifts" role="switch" ${P.includeGifts?'checked':''}></label>
+      </div>
+    </section>
+    ${section('acc', P.accounts, have)}
+    ${section('inc', incomes, expected)}
+    ${section('per', P.personal, sumA(P.personal))}
+    <div class="p-actions">
+      <button type="button" class="btn" id="pLock">🔒 Заблокировать</button>
+      <button type="button" class="btn ghost" id="pPass">Сменить пароль</button>
+      <button type="button" class="btn ghost" id="pForget">Убрать с этого устройства</button>
+    </div>`;
+  document.getElementById('foot').textContent = '🔒 Зашифровано вашим паролем. Другие пользователи сайта этих данных не видят.';
+}
+
+/* Ввод пароля: создание раздела или открытие */
+async function pSubmit(f){
+  const err=f.querySelector('#pErr'), btn=f.querySelector('[type=submit]'), lbl=btn.textContent;
+  const p1=f.p1.value, v=vaultItem(), remember=f.remember.checked;
+  err.textContent='';
+  if(!window.crypto?.subtle){ err.textContent='Этот браузер не поддерживает шифрование'; return; }
+  if(p1.length<4){ err.textContent='Пароль — минимум 4 символа'; f.p1.focus(); return; }
+  if(!v && p1!==f.p2.value){ err.textContent='Пароли не совпадают'; f.p2.focus(); return; }
+  btn.disabled=true; btn.textContent= v ? 'Проверяю…' : 'Создаю…';
+  try{
+    if(!v){
+      const salt = crypto.getRandomValues(new Uint8Array(16)), key = await deriveKey(p1, salt);
+      pData = pFresh(); pKey = key;
+      const item = {id:'vault', kind:'vault', salt:toB64(salt), ...(await sealData(key, pData)), updatedAt:Date.now()};
+      state.items.push(item); pVaultAt = item.updatedAt;
+      await rememberKey(key, remember); ls.set(PTAB_LS,'1'); commit(); toast('Личный раздел создан');
+    } else {
+      const key = await deriveKey(p1, fromB64(v.salt));
+      let d; try{ d = await openData(key, v); }catch(_){ throw new Error('Неверный пароль'); }
+      pData = pNorm(d); pKey = key; pVaultAt = v.updatedAt; pTried = true;
+      await rememberKey(key, remember); ls.set(PTAB_LS,'1'); render();
+    }
+  }catch(e){ err.textContent=e.message; btn.disabled=false; btn.textContent=lbl; f.p1.select(); }
+}
+function pLock(){ pKey=null; pData=null; forgetKey(); render(); toast('Личный раздел заблокирован'); }
+async function pForgetDevice(){
+  if(!await ask('Убрать личный раздел с этого устройства? Данные останутся — открыть их можно через меню ⋯ → «Личный раздел» с паролем.','Убрать')) return;
+  pKey=null; pData=null; forgetKey(); ls.del(PTAB_LS); setTab('budget');
+}
+async function pResetVault(){
+  if(!await ask('Без пароля данные личного раздела не открыть. Удалить их и создать раздел заново? Это удалит личные данные на всех устройствах.','Удалить')) return;
+  state.items = state.items.filter(i=>i.kind!=='vault'); removeEntity('vault');
+  pKey=null; pData=null; forgetKey(); commit(); toast('Личный раздел удалён');
+}
+document.getElementById('events').addEventListener('submit', e=>{ if(e.target.id==='pForm'){ e.preventDefault(); pSubmit(e.target); } });
+document.getElementById('events').addEventListener('change', e=>{
+  if(!pData) return;
+  const t=e.target;
+  if(t.id==='pDate'){ pData.targetDate=t.value; pSave(); }
+  else if(t.id==='pGifts'){ pData.includeGifts=t.checked; pSave(); }
+  else if(t.dataset.pev){ const id=t.dataset.pev; pData.skipEvents = t.checked ? pData.skipEvents.filter(x=>x!==id) : [...new Set([...pData.skipEvents, id])]; pSave(); }
+});
+
+/* Записи личного раздела */
+const pDlg=document.getElementById('pDlg'), pForm=document.getElementById('pItemForm');
+pForm.querySelectorAll('[data-money]').forEach(moneyInput);
+let pEdit={type:null, id:null};
+function openP(type, id){
+  if(!pData) return;
+  const c=PT[type], x = id ? pData[c.key].find(i=>i.id===id) : null;
+  pEdit={type, id:x?x.id:null};
+  document.getElementById('pTitle').textContent = x ? c.dlg : c.dlgNew;
+  pForm.name.placeholder = c.ph;
+  pForm.name.value = x?.name ?? '';
+  pForm.amount.value = x && x.amount ? num(x.amount) : '';
+  pForm.date.value = x?.date ?? '';
+  pForm.paid.checked = !!x?.paid;
+  pForm.note.value = x?.note ?? '';
+  document.getElementById('pDateF').hidden = type!=='inc';
+  document.getElementById('pPaidF').hidden = type!=='per';
+  document.getElementById('pDel').hidden = !x;
+  document.getElementById('pGot').hidden = !(x && type==='inc');
+  pDlg.showModal(); pDlg.querySelector('.dlg-b').scrollTop=0;
+  if(!x) pForm.name.focus(); else document.activeElement?.blur?.();
+}
+pForm.addEventListener('submit', e=>{
+  e.preventDefault(); if(!pData) return pDlg.close();
+  const name=pForm.name.value.trim();
+  if(!name){ pForm.name.focus(); pForm.name.setCustomValidity('Введите название'); pForm.name.reportValidity(); pForm.name.setCustomValidity(''); return; }
+  const c=PT[pEdit.type], list=pData[c.key];
+  const data={ name, amount:parseNum(pForm.amount.value)||0, note:pForm.note.value.trim() };
+  if(pEdit.type==='inc') data.date=pForm.date.value;
+  if(pEdit.type==='per') data.paid=pForm.paid.checked;
+  const x = pEdit.id && list.find(i=>i.id===pEdit.id);
+  if(x) Object.assign(x, data); else list.push({id:uid(), ...data});
+  pDlg.close(); pSave(); toast('Сохранено');
+});
+document.getElementById('pDel').onclick = ()=>{
+  if(!pData) return;
+  const c=PT[pEdit.type], snap=clone(pData), x=pData[c.key].find(i=>i.id===pEdit.id); if(!x) return;
+  pData[c.key] = pData[c.key].filter(i=>i!==x);
+  pDlg.close(); pSave();
+  toast(`«${x.name}» удалено`, ()=>{ if(pKey){ pData=snap; pSave(); } });
+};
+document.getElementById('pGot').onclick = ()=>{
+  if(!pData) return;
+  const x=pData.incomes.find(i=>i.id===pEdit.id); if(!x) return;
+  const snap=clone(pData);
+  pData.incomes = pData.incomes.filter(i=>i!==x);
+  pData.accounts.push({ id:uid(), name:x.name, amount:x.amount, note:x.note || '' });
+  pDlg.close(); pSave();
+  toast('Перенесено в «Мои деньги»', ()=>{ if(pKey){ pData=snap; pSave(); } });
+};
+
+/* Смена пароля */
+const pwDlg=document.getElementById('pwDlg'), pwForm=document.getElementById('pwForm');
+function openPw(){ pwForm.reset(); document.getElementById('pwErr').textContent=''; pwDlg.showModal(); pwForm.p1.focus(); }
+pwForm.addEventListener('submit', async e=>{
+  e.preventDefault();
+  const err=document.getElementById('pwErr'), p1=pwForm.p1.value;
+  if(p1.length<4){ err.textContent='Пароль — минимум 4 символа'; return; }
+  if(p1!==pwForm.p2.value){ err.textContent='Пароли не совпадают'; return; }
+  const v=vaultItem(); if(!v || !pData) return pwDlg.close();
+  const salt=crypto.getRandomValues(new Uint8Array(16)), key=await deriveKey(p1, salt);
+  v.salt=toB64(salt); pKey=key;
+  await pSave(); await rememberKey(key, !!ls.get(PKEY_LS));
+  pwDlg.close(); toast('Пароль изменён');
+});
 
 /* ================= Подтверждение и уведомления ================= */
 function ask(text, yes='Да'){
