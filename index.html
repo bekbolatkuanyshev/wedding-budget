@@ -899,7 +899,7 @@ document.getElementById('fileIn').onchange = async e=>{
 /* Публичный ключ (anon / publishable) можно хранить в коде: напрямую к таблице он доступа не даёт.
    Бюджет читается и сохраняется только по секретному коду из ссылки. */
 const SUPABASE_URL = 'https://ztbnczwjjnzcpzmrxkqq.supabase.co';
-const SUPABASE_KEY = '';
+const SUPABASE_KEY = 'sb_publishable_TXtR-ybSwROqYMRE9LCE9g_5ly0YRlc';
 const CLOUD_KEY = 'wedding-budget-cloud';
 const cloudOn = () => !!(SUPABASE_URL && SUPABASE_KEY);
 let cloud = (()=>{ try{ return JSON.parse(ls.get(CLOUD_KEY))||{}; }catch(e){ return {}; } })();
