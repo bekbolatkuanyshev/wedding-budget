@@ -1072,11 +1072,13 @@ function renderSyncBody(){
   } else {
     b.innerHTML = `
       <p class="note">Облако хранит бюджет в базе данных и сразу показывает изменения на всех телефонах.${mode()==='google'?' Сейчас данные синхронизируются через Google-таблицу — при подключении они перенесутся автоматически.':''}</p>
-      <p class="note"><b style="color:var(--ink)">Облако уже создано на другом телефоне?</b> Откройте на этом телефоне ссылку из окна «Синхронизация» того телефона или вставьте её сюда:</p>
-      <label class="field"><span>Ссылка с другого телефона</span><input id="joinIn" placeholder="https://…#k=…" autocomplete="off" inputmode="url"></label>
-      <button class="btn block" type="button" id="joinBtn">Подключить по ссылке</button>
-      <p class="note" style="margin-top:18px"><b style="color:var(--ink)">Ещё не создано?</b> Создайте облако на одном телефоне, а второй подключите по ссылке.</p>
       <button class="btn primary block" type="button" id="createBtn">Создать облако</button>
+      <p class="note" style="margin-top:10px">После этого здесь появится ссылка — перешлите её, например, в WhatsApp. Кто откроет ссылку, сразу увидит бюджет и все изменения.</p>
+      <details style="margin-top:14px"><summary class="note" style="cursor:pointer;margin:0">Вам прислали ссылку на бюджет?</summary>
+        <p class="note" style="margin-top:10px">Просто откройте её. Или вставьте сюда:</p>
+        <label class="field"><span>Ссылка на бюджет</span><input id="joinIn" placeholder="https://…#k=…" autocomplete="off" inputmode="url"></label>
+        <button class="btn block" type="button" id="joinBtn">Подключиться</button>
+      </details>
       <p class="note" id="connErr" style="color:var(--bad);margin-top:10px"></p>`;
   }
 }
@@ -1088,7 +1090,7 @@ document.getElementById('syncBody').addEventListener('click', async e=>{
   if(id==='createBtn'){ connectCloud(); }
   if(id==='joinBtn'){
     const code=codeFrom(document.getElementById('joinIn').value.trim());
-    if(!code){ document.getElementById('connErr').textContent='Нужна ссылка из окна «Синхронизация» другого телефона, в ней есть #k=…'; return; }
+    if(!code){ document.getElementById('connErr').textContent='Нужна ссылка на бюджет — в ней есть #k=…'; return; }
     connectCloud(code);
   }
   if(id==='unlink' && await ask('Отключить облако на этом устройстве? Данные в облаке и на других телефонах останутся.','Отключить')){
