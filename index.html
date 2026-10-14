@@ -219,6 +219,30 @@ label.kv:hover{background:var(--accent-soft)}
   #pDlg .dlg-f .right [data-close]{display:none}
 }
 
+/* Зарплата и аналитика */
+:root{ --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; }
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; } }
+:root[data-theme="dark"]{ --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; }
+.tabs.sub{background:none;padding:0;gap:6px;max-width:none}
+.tabs.sub button{border:1px solid var(--line-strong);background:var(--card);min-height:40px;border-radius:99px;font-size:14px}
+.tabs.sub button[aria-selected="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg);box-shadow:none}
+.split{display:flex;gap:2px;height:14px;border-radius:99px;overflow:hidden;background:var(--card)}
+.split i{display:block;min-width:3px}
+.legend{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:6px}
+.legend li{display:grid;grid-template-columns:12px 1fr auto 40px;gap:8px;align-items:center;font-size:14px}
+.legend .sw{width:12px;height:12px;border-radius:3px}
+.legend .dim{text-align:right;font-size:13px}
+.hbar{padding:10px 18px;border-bottom:1px solid var(--line)}
+.hb-top{display:flex;justify-content:space-between;gap:10px;font-size:14.5px;margin-bottom:6px}
+.hb-top small{font-size:12px;margin-left:4px}
+.hb-track{height:8px;border-radius:99px;background:var(--track);overflow:hidden}
+.hb-track i{display:block;height:100%;background:var(--s1);border-radius:0 4px 4px 0}
+.chart{position:relative;padding:8px 10px 6px;touch-action:pan-y}
+.chart svg{display:block;max-width:100%}
+.tip{position:absolute;z-index:3;background:var(--ink);color:var(--bg);font-size:13px;line-height:1.4;padding:8px 10px;border-radius:10px;pointer-events:none;white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.2)}
+.tip .down{color:#8fe0a9}
+input[type=range]{width:100%;accent-color:var(--accent);min-height:36px}
+
 /* Dialogs */
 dialog{border:0;padding:0;width:min(560px,calc(100vw - 32px));max-height:calc(100dvh - 40px);border-radius:20px;background:var(--card);color:var(--ink);box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:hidden}
 dialog[open]{display:flex;flex-direction:column;overflow-x:hidden}
@@ -313,6 +337,7 @@ dialog::backdrop{background:rgba(25,15,5,.5)}
     <button type="button" role="tab" data-tab="private" id="tab-private" hidden>🔒 Личное</button>
   </nav>
 
+  <div id="psub"></div>
   <section class="summary" id="summary" aria-label="Итоги"></section>
 
   <div class="filters">
@@ -384,6 +409,7 @@ dialog::backdrop{background:rgba(25,15,5,.5)}
   <div class="dlg-b">
     <label class="field"><span>Название</span><input name="name" required autocomplete="off" enterkeyhint="next"></label>
     <label class="field"><span>Сумма</span><div class="money-in"><input name="amount" inputmode="numeric" data-money autocomplete="off" placeholder="0"><i>₸</i></div></label>
+    <label class="field" id="pPerF"><span>Как часто</span><select name="period"><option value="month">Каждый месяц</option><option value="week">Каждую неделю</option><option value="year">Раз в год</option></select></label>
     <label class="field" id="pDateF"><span>Когда придут</span><input type="date" name="date"></label>
     <label class="toggle" id="pPaidF"><span>Уже оплачено<small>Оплаченное не входит в сумму, которую нужно собрать</small></span><input type="checkbox" name="paid" role="switch"></label>
     <label class="field"><span>Заметка</span><textarea name="note" rows="2"></textarea></label>
@@ -550,6 +576,7 @@ function render(){
   document.getElementById('addItem').hidden = priv;
   pCheck();
   if(priv) return renderPrivate();
+  document.getElementById('psub').innerHTML = '';
   if(tab==='gifts') return renderGifts();
   const items = EXP();
   const T = totals(items), p = pct(T.paid,T.cost);
@@ -675,6 +702,7 @@ document.getElementById('events').addEventListener('click', e=>{
   if(padd) return openP(padd.dataset.padd);
   if(prow) return openP(prow.dataset.p, prow.dataset.pid);
   if(go) return setTab(go.dataset.goto);
+  const pg=e.target.closest('[data-psub-go]'); if(pg) return goPsub(pg.dataset.psubGo);
   if(e.target.closest('#pLock')) return pLock();
   if(e.target.closest('#pPass')) return openPw();
   if(e.target.closest('#pForget')) return pForgetDevice();
@@ -943,8 +971,8 @@ async function openData(key, v){
   const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv:fromB64(v.iv)}, key, fromB64(v.ct));
   return JSON.parse(tdec.decode(pt));
 }
-const pFresh = () => ({ v:1, accounts:[], incomes:[], personal:[], targetDate:'', includeGifts:false, skipEvents:[] });
-const pNorm = d => ({ ...pFresh(), ...(d||{}), accounts:d?.accounts||[], incomes:d?.incomes||[], personal:d?.personal||[], skipEvents:d?.skipEvents||[] });
+const pFresh = () => ({ v:1, accounts:[], incomes:[], personal:[], targetDate:'', includeGifts:false, skipEvents:[], sIncome:[], sFixed:[], sFlex:[], sOther:[], saveMode:'auto', saveAmount:0 });
+const pNorm = d => { const f=pFresh(), o={...f, ...(d||{})}; ['accounts','incomes','personal','skipEvents','sIncome','sFixed','sFlex','sOther'].forEach(k=>{ if(!Array.isArray(o[k])) o[k]=[]; }); return o; };
 const ss = { get(k){ try{ return sessionStorage.getItem(k); }catch(_){ return null; } }, set(k,v){ try{ sessionStorage.setItem(k,v); }catch(_){} }, del(k){ try{ sessionStorage.removeItem(k); }catch(_){} } };
 async function rememberKey(key, persist){
   const raw = toB64(await crypto.subtle.exportKey('raw', key));
@@ -982,7 +1010,11 @@ const dFmt = d => { const x=new Date(d+'T00:00'); return isNaN(x) ? d : x.toLoca
 const PT = {
   acc:{ key:'accounts', title:'💳 Мои деньги', hint:'Сколько есть прямо сейчас', add:'Добавить', empty:'Где и сколько денег: карта, наличные, депозит', dlg:'Деньги', dlgNew:'Где есть деньги', ph:'Например: Kaspi Gold, наличные, депозит' },
   inc:{ key:'incomes', title:'📥 Ожидаемые поступления', hint:'Деньги, которые придут до свадьбы', add:'Добавить поступление', empty:'Зарплата, бонусы, долги, которые вернут', dlg:'Поступление', dlgNew:'Новое поступление', ph:'Например: зарплата за ноябрь, бонус' },
-  per:{ key:'personal', title:'🧾 Личные расходы', hint:'Только для вас — в общий бюджет не попадают', add:'Добавить расход', empty:'Расходы, которых нет в общем бюджете', dlg:'Личный расход', dlgNew:'Новый личный расход', ph:'Например: подарок невесте, путешествие' }
+  per:{ key:'personal', title:'🧾 Личные расходы', hint:'Только для вас — в общий бюджет не попадают', add:'Добавить расход', empty:'Расходы, которых нет в общем бюджете', dlg:'Личный расход', dlgNew:'Новый личный расход', ph:'Например: подарок невесте, путешествие' },
+  sinc:{ key:'sIncome', period:true, title:'💼 Доходы', hint:'Зарплата и подработки — сколько приходит на руки', add:'Добавить доход', empty:'Зарплата, подработка, сдача квартиры…', dlg:'Доход', dlgNew:'Новый доход', ph:'Например: зарплата, подработка' },
+  sfix:{ key:'sFixed', period:true, title:'🏠 Обязательные расходы', hint:'Без них не обойтись: жильё, кредиты, коммуналка, связь, транспорт, продукты', add:'Добавить расход', empty:'Аренда, кредит, коммуналка, продукты…', dlg:'Обязательный расход', dlgNew:'Новый обязательный расход', ph:'Например: аренда, кредит, продукты' },
+  sflex:{ key:'sFlex', period:true, title:'🛍️ Гибкие расходы', hint:'Можно сократить: кафе, такси, развлечения, одежда, подписки', add:'Добавить расход', empty:'Кафе, такси, развлечения, подписки…', dlg:'Гибкий расход', dlgNew:'Новый гибкий расход', ph:'Например: кафе, такси, подписки' },
+  ssave:{ key:'sOther', period:true, title:'🏦 Другие накопления', hint:'Подушка безопасности, депозит — откладываете не на свадьбу', add:'Добавить', empty:'Подушка безопасности, депозит…', dlg:'Накопления', dlgNew:'Новые накопления', ph:'Например: подушка безопасности' }
 };
 
 function lockHtml(isNew){
@@ -1003,9 +1035,67 @@ function lockHtml(isNew){
   </form></section>`;
 }
 
+/* ---------- Расчёты ---------- */
+const PER_K = { month:1, week:52/12, year:1/12 };
+const monthly = x => (Number(x.amount)||0) * (PER_K[x.period||'month'] ?? 1);
+const sumM = l => l.reduce((a,x)=>a+monthly(x),0);
+const today0 = () => new Date(new Date().toDateString());
+function wedCalc(P){
+  const evLeft = e => totals(EXP().filter(i=>i.event===e.id)).left;
+  const shared = state.events.filter(e=>!P.skipEvents.includes(e.id)).reduce((a,e)=>a+evLeft(e),0);
+  const personalLeft = sumA(P.personal.filter(x=>!x.paid));
+  const need = shared + personalLeft, have = sumA(P.accounts), expected = sumA(P.incomes);
+  const giftsMoney = GIFTS().reduce((a,g)=>a+gAmt(g),0), gifts = P.includeGifts ? giftsMoney : 0;
+  const covered = have + expected + gifts;
+  return { evLeft, shared, personalLeft, need, have, expected, giftsMoney, gifts, covered, gap: need - covered };
+}
+function salCalc(P){
+  const income = sumM(P.sIncome), fixed = sumM(P.sFixed), flex = sumM(P.sFlex), other = sumM(P.sOther);
+  const free = income - fixed - flex - other;
+  const custom = P.saveMode==='custom';
+  const plan = custom ? Math.max(0, Number(P.saveAmount)||0) : Math.max(0, free);
+  return { income, fixed, flex, other, free, plan, custom, rest: Math.max(0, free - plan) };
+}
+/* Сколько зарплат осталось до даты (по календарным месяцам) */
+function monthsUntil(dateStr){
+  if(!dateStr) return null;
+  const t = new Date(dateStr+'T00:00'), n = today0();
+  if(isNaN(t)) return null;
+  return Math.max(0, (t.getFullYear()-n.getFullYear())*12 + (t.getMonth()-n.getMonth()));
+}
+const addMonths = k => { const d=today0(); d.setDate(1); d.setMonth(d.getMonth()+k); return d; };
+const MON_DAT=['январю','февралю','марту','апрелю','маю','июню','июлю','августу','сентябрю','октябрю','ноябрю','декабрю'];
+const monthTo = d => `${MON_DAT[d.getMonth()]} ${d.getFullYear()}`;
+const monthName = (d, short) => d.toLocaleDateString('ru-RU', short ? {month:'short'} : {month:'long', year:'numeric'}).replace(' г.','');
+
+/* ---------- Общие куски разметки ---------- */
+function pRow(type, x, target){
+  let meta = '';
+  if(type==='inc' && x.date) meta = `📅 ${dFmt(x.date)}${target && x.date>target ? ' · <span class="up">после свадьбы</span>' : ''}`;
+  if(type==='per') meta = `<span class="chip ${x.paid?'closed':'planned'}">${x.paid?'Оплачено':'Не оплачено'}</span>`;
+  if(PT[type].period && x.period && x.period!=='month') meta = `${x.period==='year'?'в год':'в неделю'} · ≈ ${fmtT(monthly(x))} в месяц`;
+  return `<button type="button" class="grow" data-p="${type}" data-pid="${x.id}">
+    <span class="g-name">${esc(x.name)}${x.note?`<small>${esc(x.note)}</small>`:''}</span>
+    <span class="g-item">${meta || '<span class="dim">—</span>'}</span>
+    <span class="g-amt${type==='per'&&x.paid?' dim':''}">${fmtT(Number(x.amount)||0)}</span>
+    ${meta ? `<span class="g-sub">${meta}</span>` : ''}
+  </button>`;
+}
+function pSection(type, list, total, target){
+  const c=PT[type];
+  return `<section class="card event">
+    <div class="ev-head"><div class="ev-top"><h2>${c.title}</h2><b class="money" style="font-size:17px">${fmtT(total)}${c.period?'<span class="dim" style="font-weight:400;font-size:13px"> /мес</span>':''}</b></div>
+      <div class="ev-nums" style="margin-bottom:0">${c.hint}</div></div>
+    ${list.map(x=>pRow(type,x,target)).join('') || `<div class="empty">${c.empty}</div>`}
+    <button type="button" class="add-row" data-padd="${type}"><span>+</span>${c.add}</button>
+  </section>`;
+}
+
+let psub = ['wed','sal','ana'].includes(ls.get('wedding-budget-psub')) ? ls.get('wedding-budget-psub') : 'wed';
 function renderPrivate(){
-  const v = vaultItem(), ev = document.getElementById('events');
+  const v = vaultItem(), ev = document.getElementById('events'), sub = document.getElementById('psub');
   if(!pKey || !pData){
+    sub.innerHTML = '';
     document.getElementById('summary').innerHTML = '';
     document.getElementById('foot').textContent = '';
     const cur = document.getElementById('pForm');
@@ -1013,86 +1103,223 @@ function renderPrivate(){
     if(!cur || cur.dataset.mode !== (v?'open':'new')) ev.innerHTML = lockHtml(!v);
     return;
   }
-  const P = pData, today0 = new Date(new Date().toDateString());
-  const evLeft = e => totals(EXP().filter(i=>i.event===e.id)).left;
-  const shared = state.events.filter(e=>!P.skipEvents.includes(e.id)).reduce((a,e)=>a+evLeft(e),0);
-  const personalLeft = sumA(P.personal.filter(x=>!x.paid));
-  const need = shared + personalLeft, have = sumA(P.accounts), expected = sumA(P.incomes);
-  const giftsMoney = GIFTS().reduce((a,g)=>a+gAmt(g),0), gifts = P.includeGifts ? giftsMoney : 0;
-  const covered = have + expected + gifts, gap = need - covered;
-  const p = need ? pct(covered, need) : 100;
+  sub.innerHTML = `<nav class="tabs sub" role="tablist" aria-label="Личный раздел">${[['wed','💍 Свадьба'],['sal','💼 Зарплата'],['ana','📊 Аналитика']]
+    .map(([k,l])=>`<button type="button" role="tab" data-psub="${k}" aria-selected="${psub===k}">${l}</button>`).join('')}</nav>`;
+  if(psub==='sal') renderSalary(); else if(psub==='ana') renderAnalytics(); else renderWedding();
+  ev.insertAdjacentHTML('beforeend', `<div class="p-actions">
+      <button type="button" class="btn" id="pLock">🔒 Заблокировать</button>
+      <button type="button" class="btn ghost" id="pPass">Сменить пароль</button>
+      <button type="button" class="btn ghost" id="pForget">Убрать с этого устройства</button>
+    </div>`);
+  document.getElementById('foot').textContent = '🔒 Зашифровано вашим паролем. Другие пользователи сайта этих данных не видят.';
+}
 
+/* ---------- Подраздел «Свадьба» ---------- */
+function renderWedding(){
+  const P = pData, W = wedCalc(P), p = W.need ? pct(W.covered, W.need) : 100;
   let plan;
   if(!P.targetDate) plan = `<button type="button" class="linkish" id="pSetDate">Укажите дату свадьбы</button>, и я посчитаю, сколько откладывать в месяц`;
   else {
-    const days = Math.ceil((new Date(P.targetDate+'T00:00') - today0)/864e5);
+    const days = Math.ceil((new Date(P.targetDate+'T00:00') - today0())/864e5);
     if(days<=0) plan = `Дата свадьбы (${dFmt(P.targetDate)}) уже наступила`;
     else {
       const head = `До свадьбы ${days} ${plural(days,'день','дня','дней')} (${dFmt(P.targetDate)})`;
-      if(gap<=0) plan = `${head}. Собирать больше не нужно`;
+      if(W.gap<=0) plan = `${head}. Собирать больше не нужно`;
       else {
-        const months = days/30.44, weeks = Math.max(1, Math.ceil(days/7));
-        plan = months>=1
-          ? `${head}. Откладывайте ≈ <strong class="money">${fmtT(gap/months)}</strong> в месяц (${fmtT(gap/weeks)} в неделю)`
-          : `${head}. Откладывайте ≈ <strong class="money">${fmtT(gap/weeks)}</strong> в неделю`;
+        const m = monthsUntil(P.targetDate), weeks = Math.max(1, Math.ceil(days/7));
+        plan = m>=1
+          ? `${head}. Откладывайте ≈ <strong class="money">${fmtT(W.gap/m)}</strong> в месяц (${fmtT(W.gap/weeks)} в неделю). <button type="button" class="linkish" data-psub-go="ana">Хватит ли зарплаты?</button>`
+          : `${head}. Откладывайте ≈ <strong class="money">${fmtT(W.gap/weeks)}</strong> в неделю`;
       }
     }
   }
   document.getElementById('summary').innerHTML = `
     <div class="card hero">
-      <div class="lbl">${gap>0 ? 'Нужно собрать ещё' : 'Денег хватает · запас'}</div>
-      <div class="big money ${gap>0?'':'down'}">${num(Math.abs(gap))} ₸</div>
+      <div class="lbl">${W.gap>0 ? 'Нужно собрать ещё' : 'Денег хватает · запас'}</div>
+      <div class="big money ${W.gap>0?'':'down'}">${num(Math.abs(W.gap))} ₸</div>
       <div class="track" role="progressbar" aria-label="Покрыто" aria-valuenow="${Math.round(p)}" aria-valuemin="0" aria-valuemax="100"><b style="width:${p}%"></b></div>
-      <div class="meta"><span>Есть и ожидается <strong>${fmt(covered)}</strong> из ${fmt(need)}</span><span>${Math.round(p)}%</span></div>
+      <div class="meta"><span>Есть и ожидается <strong>${fmt(W.covered)}</strong> из ${fmt(W.need)}</span><span>${Math.round(p)}%</span></div>
       <div class="plan">${plan}</div>
     </div>
     <div class="card stats" style="grid-template-rows:none">
-      <div class="stat"><span class="lbl">Нужно оплатить</span><span class="v">${fmt(need)}</span></div>
-      <div class="stat"><span class="lbl">Есть сейчас</span><span class="v">${fmt(have)}</span></div>
-      <div class="stat"><span class="lbl">Ожидается</span><span class="v">${fmt(expected)}</span></div>
-      ${P.includeGifts ? `<div class="stat"><span class="lbl">Подарки деньгами</span><span class="v">${fmt(gifts)}</span></div>` : ''}
+      <div class="stat"><span class="lbl">Нужно оплатить</span><span class="v">${fmt(W.need)}</span></div>
+      <div class="stat"><span class="lbl">Есть сейчас</span><span class="v">${fmt(W.have)}</span></div>
+      <div class="stat"><span class="lbl">Ожидается</span><span class="v">${fmt(W.expected)}</span></div>
+      ${P.includeGifts ? `<div class="stat"><span class="lbl">Подарки деньгами</span><span class="v">${fmt(W.gifts)}</span></div>` : ''}
     </div>`;
-
-  const target = P.targetDate;
-  const row = (type, x) => {
-    let meta = '';
-    if(type==='inc' && x.date) meta = `📅 ${dFmt(x.date)}${target && x.date>target ? ' · <span class="up">после свадьбы</span>' : ''}`;
-    if(type==='per') meta = `<span class="chip ${x.paid?'closed':'planned'}">${x.paid?'Оплачено':'Не оплачено'}</span>`;
-    return `<button type="button" class="grow" data-p="${type}" data-pid="${x.id}">
-      <span class="g-name">${esc(x.name)}${x.note?`<small>${esc(x.note)}</small>`:''}</span>
-      <span class="g-item">${meta || '<span class="dim">—</span>'}</span>
-      <span class="g-amt${type==='per'&&x.paid?' dim':''}">${fmtT(Number(x.amount)||0)}</span>
-      ${meta ? `<span class="g-sub">${meta}</span>` : ''}
-    </button>`;
-  };
-  const section = (type, list, total) => { const c=PT[type]; return `<section class="card event">
-    <div class="ev-head"><div class="ev-top"><h2>${c.title}</h2><b class="money" style="font-size:17px">${fmtT(total)}</b></div>
-      <div class="ev-nums" style="margin-bottom:0">${c.hint}</div></div>
-    ${list.map(x=>row(type,x)).join('') || `<div class="empty">${c.empty}</div>`}
-    <button type="button" class="add-row" data-padd="${type}"><span>+</span>${c.add}</button>
-  </section>`; };
   const incomes = [...P.incomes].sort((a,b)=>(a.date||'9999').localeCompare(b.date||'9999'));
-
-  ev.innerHTML = `
+  document.getElementById('events').innerHTML = `
     <section class="card event">
-      <div class="ev-head"><div class="ev-top"><h2>🎯 Нужно оплатить</h2><b class="money" style="font-size:17px">${fmtT(need)}</b></div>
+      <div class="ev-head"><div class="ev-top"><h2>🎯 Нужно оплатить</h2><b class="money" style="font-size:17px">${fmtT(W.need)}</b></div>
         <div class="ev-nums" style="margin-bottom:0">Остатки из общего бюджета — отметьте, что оплачиваете вы</div></div>
-      ${state.events.map(e=>{ const on=!P.skipEvents.includes(e.id); return `<label class="kv"><span class="kv-l"><input type="checkbox" data-pev="${e.id}" ${on?'checked':''}><span>${esc(e.name)}</span></span><b class="money${on?'':' dim'}">${fmtT(evLeft(e))}</b></label>`; }).join('')}
-      <div class="kv"><span class="kv-l"><span style="width:20px;text-align:center">🧾</span><span>Личные расходы</span></span><b class="money">${fmtT(personalLeft)}</b></div>
+      ${state.events.map(e=>{ const on=!P.skipEvents.includes(e.id); return `<label class="kv"><span class="kv-l"><input type="checkbox" data-pev="${e.id}" ${on?'checked':''}><span>${esc(e.name)}</span></span><b class="money${on?'':' dim'}">${fmtT(W.evLeft(e))}</b></label>`; }).join('')}
+      <div class="kv"><span class="kv-l"><span style="width:20px;text-align:center">🧾</span><span>Личные расходы</span></span><b class="money">${fmtT(W.personalLeft)}</b></div>
       <div class="pset">
         <label class="field"><span>Дата свадьбы</span><input type="date" id="pDate" value="${esc(P.targetDate)}"></label>
-        <label class="toggle"><span>Учитывать подарки деньгами<small>${fmtT(giftsMoney)} во вкладке «Подарки». Включите, если эти деньги ещё не внесены в «Мои деньги»</small></span><input type="checkbox" id="pGifts" role="switch" ${P.includeGifts?'checked':''}></label>
+        <label class="toggle"><span>Учитывать подарки деньгами<small>${fmtT(W.giftsMoney)} во вкладке «Подарки». Включите, если эти деньги ещё не внесены в «Мои деньги»</small></span><input type="checkbox" id="pGifts" role="switch" ${P.includeGifts?'checked':''}></label>
       </div>
     </section>
-    ${section('acc', P.accounts, have)}
-    ${section('inc', incomes, expected)}
-    ${section('per', P.personal, sumA(P.personal))}
-    <div class="p-actions">
-      <button type="button" class="btn" id="pLock">🔒 Заблокировать</button>
-      <button type="button" class="btn ghost" id="pPass">Сменить пароль</button>
-      <button type="button" class="btn ghost" id="pForget">Убрать с этого устройства</button>
+    ${pSection('acc', P.accounts, W.have)}
+    ${pSection('inc', incomes, W.expected, P.targetDate)}
+    ${pSection('per', P.personal, sumA(P.personal))}`;
+}
+
+/* ---------- Подраздел «Зарплата» ---------- */
+const SEG = [ ['fixed','Обязательные','var(--s1)'], ['flex','Гибкие','var(--s2)'], ['other','Другие накопления','var(--s3)'], ['plan','На свадьбу','var(--s4)'], ['rest','Не распределено','var(--track)'] ];
+function splitBar(S){
+  const total = Math.max(S.income, S.fixed+S.flex+S.other+S.plan+S.rest) || 1;
+  const parts = SEG.map(([k,l,c])=>({k,l,c,v:S[k]})).filter(x=>x.v>0);
+  if(!parts.length) return '';
+  return `<div class="split" role="img" aria-label="${parts.map(x=>`${x.l}: ${fmtT(x.v)}`).join(', ')}">${parts.map(x=>`<i style="flex:${x.v/total};background:${x.c}" title="${x.l}: ${fmtT(x.v)}"></i>`).join('')}</div>
+    <ul class="legend">${parts.map(x=>`<li><span class="sw" style="background:${x.c}"></span><span>${x.l}</span><b class="money">${fmtT(x.v)}</b><span class="dim">${S.income?Math.round(x.v/S.income*100)+'%':''}</span></li>`).join('')}</ul>`;
+}
+function renderSalary(){
+  const P = pData, S = salCalc(P);
+  const empty = !P.sIncome.length;
+  document.getElementById('summary').innerHTML = `
+    <div class="card hero" style="grid-column:1 / -1">
+      <div class="lbl">${S.free>=0 ? 'Свободно в месяц после всех расходов' : 'Расходы больше доходов на'}</div>
+      <div class="big money ${S.free<0?'up':''}">${num(Math.abs(S.free))} ₸</div>
+      ${empty ? '<p class="note" style="margin:0">Добавьте зарплату и расходы ниже — здесь появится, куда уходят деньги и сколько можно откладывать.</p>'
+        : `<div class="meta" style="margin:0 0 12px"><span>Доход <strong>${fmt(S.income)}</strong> в месяц</span><span>Расходы <strong>${fmt(S.fixed+S.flex)}</strong></span></div>${splitBar(S)}`}
     </div>`;
-  document.getElementById('foot').textContent = '🔒 Зашифровано вашим паролем. Другие пользователи сайта этих данных не видят.';
+  const auto = !S.custom;
+  document.getElementById('events').innerHTML = `
+    ${pSection('sinc', P.sIncome, S.income)}
+    ${pSection('sfix', P.sFixed, S.fixed)}
+    ${pSection('sflex', P.sFlex, S.flex)}
+    ${pSection('ssave', P.sOther, S.other)}
+    <section class="card event">
+      <div class="ev-head"><div class="ev-top"><h2>💍 Откладывать на свадьбу</h2><b class="money" style="font-size:17px">${fmtT(S.plan)}<span class="dim" style="font-weight:400;font-size:13px"> /мес</span></b></div>
+        <div class="ev-nums" style="margin-bottom:0">Эта сумма используется в аналитике</div></div>
+      <div class="pset">
+        <label class="check-row"><input type="radio" name="pSaveMode" value="auto" ${auto?'checked':''}> Всё свободное — ${fmtT(Math.max(0,S.free))} в месяц</label>
+        <label class="check-row"><input type="radio" name="pSaveMode" value="custom" ${auto?'':'checked'}> Своя сумма</label>
+        <label class="field" ${auto?'hidden':''}><span>Сколько в месяц</span><div class="money-in"><input id="pSaveAmt" inputmode="numeric" value="${P.saveAmount?num(P.saveAmount):''}" placeholder="0" autocomplete="off"><i>₸</i></div>
+          ${!auto && S.plan>Math.max(0,S.free) ? `<span class="help up">Больше, чем остаётся после расходов (${fmtT(Math.max(0,S.free))})</span>` : ''}</label>
+      </div>
+    </section>`;
+}
+
+/* ---------- Подраздел «Аналитика» ---------- */
+let scenarioCut = 0;
+function forecast(gap, plan, months){
+  /* сколько месяцев нужно и что будет к свадьбе */
+  const need = plan>0 ? Math.ceil(gap/plan) : Infinity;
+  const atWedding = months!=null ? plan*months : null;
+  return { needMonths:need, finish: isFinite(need) ? addMonths(need) : null, atWedding };
+}
+function renderAnalytics(){
+  const P = pData, W = wedCalc(P), S = salCalc(P), gap = Math.max(0, W.gap);
+  const m = monthsUntil(P.targetDate), F = forecast(gap, S.plan, m);
+  const required = m ? gap/m : null;
+  let cls='', head, text;
+  if(!P.sIncome.length){ head='Заполните зарплату'; text=`Во вкладке <button type="button" class="linkish" data-psub-go="sal">«Зарплата»</button> добавьте доход и расходы — я посчитаю, успеваете ли вы накопить к свадьбе.`; }
+  else if(W.gap<=0){ cls='down'; head='Деньги на свадьбу уже есть'; text=`Есть и ожидается ${fmt(W.covered)} при расходах ${fmt(W.need)}. Свободные ${fmt(S.plan)} в месяц можно направить на другие цели.`; }
+  else if(S.plan<=0){ cls='up'; head='Сейчас отложить не получается'; text=S.free<0 ? `Расходы больше доходов на ${fmt(-S.free)} в месяц. Посмотрите гибкие расходы ниже.` : 'Укажите сумму, которую готовы откладывать, во вкладке «Зарплата».'; }
+  else if(m==null){ head=`Соберёте за ${F.needMonths} ${plural(F.needMonths,'месяц','месяца','месяцев')}`; text=`Откладывая ${fmt(S.plan)} в месяц, нужные ${fmt(gap)} будут к ${monthTo(F.finish)}. <button type="button" class="linkish" data-psub-go="wed">Укажите дату свадьбы</button>, чтобы сравнить.`; }
+  else if(m===0){ cls='up'; head='До свадьбы меньше месяца'; text=`Не хватает ${fmt(gap)} — зарплата до свадьбы уже не придёт.`; }
+  else if(F.atWedding>=gap){ cls='down'; head='Успеваете ✓'; text=`К свадьбе отложите ${fmt(F.atWedding)} — это на ${fmt(F.atWedding-gap)} больше нужного. Нужная сумма будет уже к ${monthTo(F.finish)}.`; }
+  else { cls='up'; head='Не успеваете к свадьбе'; text=`К свадьбе отложите ${fmt(F.atWedding)} из ${fmt(gap)} — не хватит ${fmt(gap-F.atWedding)}. Нужно откладывать ${fmt(required)} в месяц, это на ${fmt(required-S.plan)} больше. В нынешнем темпе соберёте к ${monthTo(F.finish)}.`; }
+
+  const rate = S.income ? Math.round((S.other+S.plan)/S.income*100) : 0;
+  document.getElementById('summary').innerHTML = `
+    <div class="card hero">
+      <div class="lbl">Прогноз накоплений на свадьбу</div>
+      <div class="big ${cls}" style="font-size:clamp(24px,6vw,30px)">${head}</div>
+      <p class="note" style="margin:0;color:var(--ink)">${text}</p>
+    </div>
+    <div class="card stats" style="grid-template-rows:none">
+      <div class="stat"><span class="lbl">Нужно собрать</span><span class="v">${fmt(gap)}</span></div>
+      <div class="stat"><span class="lbl">Зарплат до свадьбы</span><span class="v">${m==null?'—':m}</span></div>
+      <div class="stat"><span class="lbl">Нужно в месяц</span><span class="v">${required==null?'—':fmt(required)}</span></div>
+      <div class="stat"><span class="lbl">Откладываете в месяц</span><span class="v ${required!=null && S.plan<required?'up':''}">${fmt(S.plan)}</span></div>
+    </div>`;
+
+  const topExp = [...P.sFixed.map(x=>({...x,kind:'Обязательный'})), ...P.sFlex.map(x=>({...x,kind:'Гибкий',flex:true}))]
+    .map(x=>({...x, m:monthly(x)})).filter(x=>x.m>0).sort((a,b)=>b.m-a.m).slice(0,8);
+  const maxE = topExp[0]?.m || 1;
+  const bigFlex = topExp.find(x=>x.flex);
+  const showForecast = P.sIncome.length && W.gap>0 && S.plan>0;
+
+  document.getElementById('events').innerHTML = `
+    ${showForecast ? `<section class="card event">
+      <div class="ev-head"><div class="ev-top"><h2>📈 Как будут расти накопления</h2></div>
+        <div class="ev-nums" style="margin-bottom:0">Сколько отложите к каждому месяцу, если откладывать ${fmtT(S.plan)}. Пунктир — нужная сумма${m?', бледные столбцы — после свадьбы':''}.</div></div>
+      <div class="chart" id="pChart"></div>
+    </section>` : ''}
+    ${P.sIncome.length && W.gap>0 ? `<section class="card event">
+      <div class="ev-head"><div class="ev-top"><h2>✂️ Что если сократить гибкие расходы</h2></div>
+        <div class="ev-nums" style="margin-bottom:0">Гибкие расходы сейчас ${fmtT(S.flex)} в месяц</div></div>
+      <div class="pset">
+        <label class="field"><span>Сократить на <b id="cutPct">${scenarioCut}%</b></span><input type="range" id="cutRange" min="0" max="100" step="10" value="${scenarioCut}" ${S.flex?'':'disabled'}></label>
+        <div id="cutOut" class="note" style="color:var(--ink)"></div>
+      </div>
+    </section>` : ''}
+    <section class="card event">
+      <div class="ev-head"><div class="ev-top"><h2>💸 Куда уходят деньги</h2></div>
+        <div class="ev-nums" style="margin-bottom:0">${topExp.length ? `Самые большие расходы в месяц, доля от дохода` : 'Добавьте расходы во вкладке «Зарплата»'}</div></div>
+      ${topExp.map(x=>`<div class="hbar"><div class="hb-top"><span>${esc(x.name)} <small class="dim">${x.kind}</small></span><b class="money">${fmtT(x.m)}${S.income?` <span class="dim" style="font-weight:400">· ${Math.round(x.m/S.income*100)}%</span>`:''}</b></div><div class="hb-track"><i style="width:${x.m/maxE*100}%"></i></div></div>`).join('')}
+      ${bigFlex ? `<div class="pset"><p class="note" style="margin:0 0 14px">💡 Самый большой гибкий расход — «${esc(bigFlex.name)}». Если сократить его вдвое, на свадьбу будет на ${fmt(bigFlex.m/2)} больше в месяц.</p></div>` : ''}
+    </section>
+    ${S.income ? `<section class="card event">
+      <div class="ev-head"><div class="ev-top"><h2>🏦 Норма сбережений</h2><b style="font-size:17px">${rate}%</b></div>
+        <div class="ev-nums" style="margin-bottom:0">${rate>=20 ? 'Вы откладываете 20% дохода и больше — хороший уровень.' : rate>=10 ? 'Неплохо. Многие советуют откладывать от 20% дохода.' : 'Меньше 10% дохода. Часто советуют стремиться к 20%.'} Учитываются накопления на свадьбу и другие накопления.</div></div>
+    </section>` : ''}`;
+
+  if(showForecast) drawForecast(document.getElementById('pChart'), gap, S.plan, m);
+  const range = document.getElementById('cutRange');
+  if(range){
+    const upd = ()=>{
+      scenarioCut = +range.value;
+      document.getElementById('cutPct').textContent = scenarioCut+'%';
+      const extra = S.flex*scenarioCut/100, plan2 = S.plan + extra, F2 = forecast(gap, plan2, m);
+      const out = document.getElementById('cutOut');
+      if(!scenarioCut){ out.innerHTML = 'Подвиньте ползунок, чтобы увидеть, как изменится срок.'; return; }
+      out.innerHTML = `Откладывать будете <b class="money">${fmtT(plan2)}</b> в месяц (+${fmtT(extra)}). `
+        + (plan2<=0 ? '' : `Нужная сумма будет к <b>${monthTo(F2.finish)}</b>`)
+        + (m ? (F2.atWedding>=gap ? ` — <span class="down">успеваете к свадьбе</span>.` : ` — к свадьбе не хватит ${fmtT(gap-F2.atWedding)}.`) : '.');
+    };
+    range.addEventListener('input', upd); upd();
+  }
+}
+
+/* График: накопления по месяцам (столбцы) и нужная сумма (пунктир) */
+function drawForecast(el, gap, plan, m){
+  const need = Math.ceil(gap/plan);
+  const n = Math.max(1, Math.min(36, m ? Math.max(m, Math.min(need, m+6)) : need));
+  const data = Array.from({length:n}, (_,i)=>({ d:addMonths(i+1), v:plan*(i+1) }));
+  const W = Math.max(280, el.clientWidth), H = 220, padL = 8, padR = 8, padT = 26, padB = 30;
+  const maxV = Math.max(gap, data[n-1].v) * 1.08;
+  const y = v => padT + (H-padT-padB) * (1 - v/maxV);
+  const bw = (W-padL-padR)/n, barW = Math.max(3, Math.min(28, bw-2));
+  const step = Math.ceil(n/ (W<480 ? 6 : 12));
+  const gy = y(gap);
+  let svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Прогноз накоплений по месяцам">`;
+  svg += `<line x1="${padL}" x2="${W-padR}" y1="${H-padB}" y2="${H-padB}" stroke="var(--line-strong)"/>`;
+  data.forEach((p,i)=>{
+    const x = padL + i*bw + (bw-barW)/2, top = y(p.v), h = H-padB-top, r = Math.min(4, barW/2, h);
+    const wed = m && i+1===m, after = m && i+1>m;
+    svg += `<path d="M${x},${H-padB} V${top+r} q0,-${r} ${r},-${r} h${barW-2*r} q${r},0 ${r},${r} V${H-padB} Z" fill="var(--s1)" opacity="${after?.3:1}" data-i="${i}"/>`;
+    if(wed){ const lx=Math.max(x+barW, 150); svg += `<text x="${lx}" y="${top-6}" text-anchor="end" font-size="11.5" font-weight="600" fill="var(--ink)">к свадьбе ${fmtT(p.v)}</text>`; }
+    if(i%step===0 || wed) svg += `<text x="${x+barW/2}" y="${H-padB+16}" text-anchor="middle" font-size="11" fill="${wed?'var(--ink)':'var(--muted)'}" font-weight="${wed?600:400}">${wed?'💍 ':''}${monthName(p.d,true)}</text>`;
+  });
+  svg += `<line x1="${padL}" x2="${W-padR}" y1="${gy}" y2="${gy}" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  svg += `<text x="${padL}" y="${gy-7}" font-size="12" fill="var(--ink)" font-weight="600">Нужно ${fmtT(gap)}</text>`;
+  svg += `<rect x="0" y="0" width="${W}" height="${H}" fill="transparent" id="pHit"/></svg>`;
+  el.innerHTML = svg + `<div class="tip" id="pTip" hidden></div>`;
+  const tip = el.querySelector('#pTip'), hit = el.querySelector('#pHit');
+  const show = ev => {
+    const r = el.getBoundingClientRect(), cx = (ev.touches?ev.touches[0].clientX:ev.clientX) - r.left;
+    const i = Math.max(0, Math.min(n-1, Math.floor((cx-padL)/bw))), p = data[i];
+    el.querySelectorAll('path[data-i]').forEach(b=>b.style.filter = +b.dataset.i===i ? 'brightness(.85)' : '');
+    tip.innerHTML = `<b>${monthName(p.d)}</b><br>Отложено <b class="money">${fmtT(p.v)}</b><br>${p.v>=gap?'<span class="down">Хватает ✓</span>':`Ещё не хватает ${fmtT(gap-p.v)}`}`;
+    tip.hidden = false;
+    const left = Math.min(Math.max(8, padL + i*bw + bw/2 - tip.offsetWidth/2), W - tip.offsetWidth - 8);
+    tip.style.left = left+'px'; tip.style.top = '0px';
+  };
+  const hide = ()=>{ tip.hidden = true; el.querySelectorAll('path[data-i]').forEach(b=>b.style.filter=''); };
+  hit.addEventListener('pointermove', show); hit.addEventListener('pointerdown', show); hit.addEventListener('pointerleave', hide);
 }
 
 /* Ввод пароля: создание раздела или открытие */
@@ -1129,12 +1356,21 @@ async function pResetVault(){
   state.items = state.items.filter(i=>i.kind!=='vault'); removeEntity('vault');
   pKey=null; pData=null; forgetKey(); commit(); toast('Личный раздел удалён');
 }
+document.getElementById('events').addEventListener('input', e=>{ if(e.target.id==='pSaveAmt'){ const n=parseNum(e.target.value); e.target.value = n==null?'':num(n); } });
+document.getElementById('summary').addEventListener('click', e=>{
+  const pg=e.target.closest('[data-psub-go]'); if(pg) return goPsub(pg.dataset.psubGo);
+  if(e.target.closest('#pSetDate')){ const d=document.getElementById('pDate'); if(d){ d.scrollIntoView({block:'center'}); d.focus(); try{ d.showPicker(); }catch(_){} } }
+});
+function goPsub(k){ psub=k; ls.set('wedding-budget-psub',k); render(); scrollTo({top:0}); }
+document.getElementById('psub').addEventListener('click', e=>{ const b=e.target.closest('[data-psub]'); if(b && b.dataset.psub!==psub) goPsub(b.dataset.psub); });
 document.getElementById('events').addEventListener('submit', e=>{ if(e.target.id==='pForm'){ e.preventDefault(); pSubmit(e.target); } });
 document.getElementById('events').addEventListener('change', e=>{
   if(!pData) return;
   const t=e.target;
   if(t.id==='pDate'){ pData.targetDate=t.value; pSave(); }
   else if(t.id==='pGifts'){ pData.includeGifts=t.checked; pSave(); }
+  else if(t.name==='pSaveMode'){ pData.saveMode=t.value; if(t.value==='custom' && !pData.saveAmount) pData.saveAmount=Math.max(0, Math.round(salCalc(pData).free)); pSave(); }
+  else if(t.id==='pSaveAmt'){ pData.saveAmount=parseNum(t.value)||0; pSave(); }
   else if(t.dataset.pev){ const id=t.dataset.pev; pData.skipEvents = t.checked ? pData.skipEvents.filter(x=>x!==id) : [...new Set([...pData.skipEvents, id])]; pSave(); }
 });
 
@@ -1151,6 +1387,8 @@ function openP(type, id){
   pForm.name.value = x?.name ?? '';
   pForm.amount.value = x && x.amount ? num(x.amount) : '';
   pForm.date.value = x?.date ?? '';
+  pForm.period.value = x?.period || 'month';
+  document.getElementById('pPerF').hidden = !c.period;
   pForm.paid.checked = !!x?.paid;
   pForm.note.value = x?.note ?? '';
   document.getElementById('pDateF').hidden = type!=='inc';
@@ -1168,6 +1406,7 @@ pForm.addEventListener('submit', e=>{
   const data={ name, amount:parseNum(pForm.amount.value)||0, note:pForm.note.value.trim() };
   if(pEdit.type==='inc') data.date=pForm.date.value;
   if(pEdit.type==='per') data.paid=pForm.paid.checked;
+  if(c.period) data.period=pForm.period.value;
   const x = pEdit.id && list.find(i=>i.id===pEdit.id);
   if(x) Object.assign(x, data); else list.push({id:uid(), ...data});
   pDlg.close(); pSave(); toast('Сохранено');
