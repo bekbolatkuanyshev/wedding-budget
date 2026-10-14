@@ -597,8 +597,8 @@ function rowHtml(it){
 
 function renderBanner(){
   const b = document.getElementById('banner');
-  b.innerHTML = !sync.url && ls.get('wedding-budget-banner')!=='hidden'
-    ? `<div class="banner"><span>Данные пока только на этом устройстве. Подключите облако, чтобы видеть их на всех телефонах.</span><span style="display:flex;gap:4px;align-items:center"><button class="btn" type="button" id="bannerBtn">Подключить</button><button class="btn icon ghost" type="button" id="bannerX" aria-label="Скрыть" style="color:inherit;background:none">×</button></span></div>` : '';
+  b.innerHTML = cloudOn() && mode()!=='cloud' && ls.get('wedding-budget-banner2')!=='hidden'
+    ? `<div class="banner"><span>Подключите облако: бюджет будет надёжно храниться в базе, а изменения — сразу появляться на всех телефонах.</span><span style="display:flex;gap:4px;align-items:center"><button class="btn" type="button" id="bannerBtn">Подключить</button><button class="btn icon ghost" type="button" id="bannerX" aria-label="Скрыть" style="color:inherit;background:none">×</button></span></div>` : '';
 }
 
 /* ================= События списка ================= */
@@ -620,7 +620,7 @@ document.querySelector('.tabs').addEventListener('click', e=>{ const t=e.target.
 document.getElementById('q').addEventListener('input', render);
 document.getElementById('addItem').onclick = ()=> tab==='gifts' ? openGift(null) : openItem(null);
 document.getElementById('fab').onclick = ()=> tab==='gifts' ? openGift(null) : openItem(null);
-document.getElementById('banner').addEventListener('click', e=>{ if(e.target.id==='bannerBtn') openSync(); if(e.target.id==='bannerX'){ ls.set('wedding-budget-banner','hidden'); renderBanner(); } });
+document.getElementById('banner').addEventListener('click', e=>{ if(e.target.id==='bannerBtn') openSync(); if(e.target.id==='bannerX'){ ls.set('wedding-budget-banner2','hidden'); renderBanner(); } });
 document.getElementById('syncPill').onclick = ()=>openSync();
 
 /* Меню */
@@ -895,46 +895,96 @@ document.getElementById('fileIn').onchange = async e=>{
   commit(); toast('Данные восстановлены', ()=>restore(snap));
 };
 
-/* ================= Синхронизация (Google Таблица) ================= */
-/* Общее облако по умолчанию: все устройства подключаются автоматически */
+/* ================= Облако (Supabase) ================= */
+/* Публичный ключ (anon / publishable) можно хранить в коде: напрямую к таблице он доступа не даёт.
+   Бюджет читается и сохраняется только по секретному коду из ссылки. */
+const SUPABASE_URL = '';
+const SUPABASE_KEY = '';
+const CLOUD_KEY = 'wedding-budget-cloud';
+const cloudOn = () => !!(SUPABASE_URL && SUPABASE_KEY);
+let cloud = (()=>{ try{ return JSON.parse(ls.get(CLOUD_KEY))||{}; }catch(e){ return {}; } })();
+const saveCloud = () => ls.set(CLOUD_KEY, JSON.stringify(cloud));
+
+/* Старая синхронизация через Google-таблицу: работает, пока облако не подключено, и нужна, чтобы перенести данные */
 const DEFAULT_SYNC_URL = 'https://script.google.com/macros/s/AKfycby_yKKQzBmAYzKx0OF-F6_0ilTY50wEcQGEQQKguRiqBiRGexc6rUpzNdBdaHd30xT1/exec';
 let sync = (()=>{ try{ return JSON.parse(ls.get(SYNC_KEY))||{}; }catch(e){ return {}; } })();
 if(!sync.url && DEFAULT_SYNC_URL && ls.get('wedding-budget-unlinked')!=='1'){ sync={url:DEFAULT_SYNC_URL}; ls.set(DIRTY_KEY,'1'); }
+
+const mode = () => cloud.code && cloudOn() ? 'cloud' : sync.url ? 'google' : '';
 let syncState='off', syncErr='', lastSync=0, inflight=false, again=false, pushTimer;
 const isDirty = () => ls.get(DIRTY_KEY)==='1';
-function markDirty(){ ls.set(DIRTY_KEY,'1'); if(sync.url){ setSync(navigator.onLine===false?'err':'busy'); clearTimeout(pushTimer); pushTimer=setTimeout(syncNow,700); } }
+function markDirty(){ ls.set(DIRTY_KEY,'1'); if(mode()){ setSync(navigator.onLine===false?'err':'busy'); clearTimeout(pushTimer); pushTimer=setTimeout(syncNow,700); } }
+
+/* Сравнение без учёта порядка ключей: база хранит JSON со своим порядком полей */
+const canon = v => Array.isArray(v) ? '['+v.map(canon).join(',')+']'
+  : v && typeof v==='object' ? '{'+Object.keys(v).sort().filter(k=>v[k]!==undefined).map(k=>JSON.stringify(k)+':'+canon(v[k])).join(',')+'}'
+  : JSON.stringify(v===undefined ? null : v);
+
+async function rpc(fn, args){
+  const headers = {'Content-Type':'application/json', apikey:SUPABASE_KEY};
+  if(!SUPABASE_KEY.startsWith('sb_')) headers.Authorization = 'Bearer '+SUPABASE_KEY;
+  let r;
+  try{ r = await fetch(SUPABASE_URL+'/rest/v1/rpc/'+fn, {method:'POST', headers, body:JSON.stringify(args)}); }
+  catch(e){ throw new Error(navigator.onLine===false ? 'нет интернета' : 'сервер недоступен'); }
+  const text = await r.text();
+  let j=null; try{ j = text ? JSON.parse(text) : null; }catch(_){}
+  if(!r.ok) throw new Error(r.status===404 ? 'база ещё не настроена (нет функций get_budget / save_budget)' : 'ошибка сервера: '+((j && (j.message||j.hint)) || r.status));
+  return j;
+}
+
+/* Объединяем свои изменения с облаком. Если кто-то сохранил одновременно — объединяем ещё раз. */
+async function cloudSync(){
+  const before = canon(state);
+  let remote = await rpc('get_budget', {p_code:cloud.code});
+  for(let i=0; i<5; i++){
+    const rdata = remote && remote.data;
+    const merged = migrate(merge(rdata ? clone(rdata) : null, clone(state)));
+    let version = remote ? remote.version : 0, saved = false;
+    if(!rdata || canon(merged)!==canon(rdata)){
+      const res = await rpc('save_budget', {p_code:cloud.code, p_data:merged, p_version:version});
+      if(!res || !res.ok){ remote = res && res.version ? {data:res.data, version:res.version} : null; continue; }
+      version = res.version; saved = true;
+    }
+    const changedMeanwhile = canon(state)!==before;
+    state = changedMeanwhile ? migrate(merge(merged, state)) : merged;
+    cloud.version = version; saveCloud(); saveLocal();
+    if(changedMeanwhile) again=true; else ls.del(DIRTY_KEY);
+    if(saved) notifyOthers();
+    return;
+  }
+  throw new Error('много одновременных изменений, повторю через минуту');
+}
 
 async function api(body){
   const url = sync.url + (body ? '' : (sync.url.includes('?')?'&':'?') + 't=' + Date.now());
   let r;
   try{ r = await fetch(url, body ? {method:'POST', body:JSON.stringify(body), headers:{'Content-Type':'text/plain;charset=utf-8'}, redirect:'follow'} : {redirect:'follow'}); }
-  catch(e){ throw new Error(navigator.onLine===false ? 'нет интернета' : 'Google не пустил запрос. Почти всегда это значит, что в развертывании «У кого есть доступ» стоит не «Все», либо приложение не авторизовано (см. шаг 4).'); }
-  const text = await r.text();
-  if(!r.ok) throw new Error(r.status===404 ? 'ссылка не найдена (404). Скопируйте URL веб-приложения заново.' : 'Google ответил ошибкой '+r.status);
-  let j; try{ j=JSON.parse(text); }
-  catch(e){
-    if(/accounts\.google|ServiceLogin|signin/i.test(text)) throw new Error('Google просит войти в аккаунт: в развертывании выберите «У кого есть доступ: Все».');
-    if(/TypeError|Exception|Ошибка|Error/i.test(text)) throw new Error('ошибка в скрипте: '+text.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').slice(0,160));
-    throw new Error('неожиданный ответ от Google. Проверьте ссылку и настройки развертывания.');
-  }
-  if(!j.ok) throw new Error(/permission|разрешени|authoriz/i.test(j.error||'') ? 'у скрипта нет разрешений: в редакторе Apps Script запустите функцию setup и разрешите доступ.' : 'ошибка в скрипте: '+(j.error||''));
+  catch(e){ throw new Error(navigator.onLine===false ? 'нет интернета' : 'Google-таблица недоступна'); }
+  if(!r.ok) throw new Error('Google ответил ошибкой '+r.status);
+  let j; try{ j=JSON.parse(await r.text()); }catch(e){ throw new Error('неожиданный ответ от Google-таблицы'); }
+  if(!j.ok) throw new Error('ошибка в скрипте: '+(j.error||''));
   return j;
 }
+async function googleSync(){
+  const pushing = isDirty();
+  const before = JSON.stringify(state);
+  const j = pushing ? await api({data:state}) : await api();
+  const changedMeanwhile = JSON.stringify(state)!==before;
+  state = migrate(merge(j.data, state));
+  saveLocal();
+  if(pushing && !changedMeanwhile) ls.del(DIRTY_KEY);
+  if(changedMeanwhile) again=true;
+}
+
 async function syncNow(){
-  if(!sync.url) return setSync('off');
+  const m = mode();
+  if(!m) return setSync('off');
   if(inflight){ again=true; return; }
   inflight=true; again=false; setSync('busy');
   try{
-    const pushing = isDirty();
-    const before = JSON.stringify(state);
-    const j = pushing ? await api({data:state}) : await api();
-    const changedMeanwhile = JSON.stringify(state)!==before;
-    state = migrate(merge(j.data, state));
-    saveLocal();
-    if(pushing && !changedMeanwhile) ls.del(DIRTY_KEY);
+    await (m==='cloud' ? cloudSync() : googleSync());
     if(!itemDlg.open) render();
     lastSync=Date.now(); setSync('ok');
-    if(changedMeanwhile) again=true;
   }catch(e){ syncErr=e.message; setSync('err'); }
   finally{ inflight=false; if(again){ again=false; setTimeout(syncNow,300); } }
 }
@@ -942,31 +992,59 @@ function setSync(s){
   syncState=s;
   const pill=document.getElementById('syncPill'), t=document.getElementById('syncText');
   pill.className='sync '+s;
-  const txt = { off:'Только на этом устройстве', busy:'Сохраняю…', ok:'Сохранено в облаке', err: isDirty()?'Нет связи · сохранено на телефоне':'Нет связи с облаком' }[s];
+  const txt = { off:'Только на этом устройстве', busy:'Сохраняю…', ok: mode()==='google' ? 'Сохранено в Google-таблице' : 'Сохранено в облаке',
+    err: isDirty()?'Нет связи · сохранено на телефоне':'Нет связи с облаком' }[s];
   t.textContent=txt; pill.title = s==='ok' && lastSync ? 'Синхронизировано в '+new Date(lastSync).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}) : (s==='err'?syncErr:txt);
   pill.setAttribute('aria-label','Синхронизация: '+txt);
   if(document.getElementById('syncDlg').open) renderSyncBody();
 }
-const shareLink = () => location.origin + location.pathname + '#sync=' + encodeURIComponent(sync.url);
 
-const CODE_RAW='https://raw.githubusercontent.com/bekbolatkuanyshev/wedding-budget/main/apps-script/Code.gs';
-let codeText='';
-async function loadCode(){
-  if(codeText) return;
-  for(const u of ['apps-script/Code.gs', CODE_RAW]){
-    try{ const r=await fetch(u,{cache:'no-store'}); if(r.ok){ const t=await r.text(); if(t.includes('function doPost')){ codeText=t; break; } } }catch(_){}
-  }
-  const box=document.getElementById('codeBox'); if(box && codeText) box.value=codeText;
+/* Мгновенные обновления: телефон, сохранивший изменения, сообщает остальным, и они сразу подтягивают данные */
+let rt=null, rtCode=null, sbLib;
+function startRealtime(){
+  if(mode()!=='cloud' || rtCode===cloud.code) return;
+  stopRealtime(); rtCode=cloud.code;
+  sbLib = sbLib || new Promise((res,rej)=>{ const sc=document.createElement('script'); sc.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; sc.onload=res; sc.onerror=rej; document.head.appendChild(sc); });
+  sbLib.then(()=>{
+    if(rtCode!==cloud.code) return;
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth:{persistSession:false, autoRefreshToken:false}});
+    rt = sb.channel('budget-'+cloud.code, {config:{broadcast:{self:false}}});
+    rt.on('broadcast', {event:'changed'}, ()=>syncNow()).subscribe();
+  }, ()=>{ sbLib=null; rtCode=null; });
 }
-function fallbackCopy(box){
-  let ok=false;
-  try{ box.focus(); box.select(); box.setSelectionRange(0, box.value.length); ok=document.execCommand('copy'); }catch(_){}
-  toast(ok ? 'Код скопирован — вставьте его в Apps Script' : 'Код выделен — нажмите Cmd+C (или «Скопировать» в меню)');
+function stopRealtime(){ try{ rt && rt.unsubscribe(); }catch(_){} rt=null; rtCode=null; }
+function notifyOthers(){ try{ rt && rt.send({type:'broadcast', event:'changed', payload:{}}); }catch(_){} }
+
+const shareLink = () => location.origin + location.pathname + '#k=' + cloud.code;
+function newCode(){
+  const a=new Uint8Array(24); crypto.getRandomValues(a);
+  return btoa(String.fromCharCode(...a)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
-function openSync(){ renderSyncBody(); document.getElementById('syncDlg').showModal(); if(!sync.url) loadCode(); }
+
+/* Создать облако (code не задан) или подключиться к существующему по коду из ссылки */
+async function connectCloud(code){
+  const err=document.getElementById('connErr');
+  const btns=[...document.querySelectorAll('#createBtn,#joinBtn')]; btns.forEach(b=>b.disabled=true);
+  const fail = msg => { if(err) err.textContent=msg; else toast(msg); btns.forEach(b=>b.disabled=false); return false; };
+  try{
+    if(code){ if(!await rpc('get_budget',{p_code:code})) return fail('Облако по этой ссылке не найдено. Скопируйте ссылку заново.'); }
+    else code=newCode();
+    /* Переносим всё, что есть в Google-таблице, — ничего не потеряется */
+    if(sync.url){ try{ const j=await api(); if(j.data){ state=migrate(merge(j.data,state)); saveLocal(); } }catch(_){} }
+  }catch(e){ return fail('Не удалось подключиться: '+e.message); }
+  const prev=cloud; cloud={code}; saveCloud(); ls.set(DIRTY_KEY,'1');
+  await syncNow();
+  if(syncState==='err'){ cloud=prev; prev.code?saveCloud():ls.del(CLOUD_KEY); mode()?syncNow():setSync('off'); return fail('Не удалось подключиться: '+syncErr); }
+  sync={}; ls.del(SYNC_KEY); ls.set('wedding-budget-unlinked','1');
+  startRealtime(); render(); renderSyncBody(); toast('Облако подключено');
+  return true;
+}
+const codeFrom = s => (String(s).match(/(?:^|[#&?]k=)([\w-]{24,64})(?:$|&)/)||[])[1];
+
+function openSync(){ renderSyncBody(); document.getElementById('syncDlg').showModal(); }
 let qrLib;
 function drawQr(){
-  const el=document.getElementById('qr'); if(!el || !sync.url) return;
+  const el=document.getElementById('qr'); if(!el || mode()!=='cloud') return;
   const draw=()=>{ el.innerHTML=''; try{ new QRCode(el,{text:shareLink(),width:220,height:220,correctLevel:QRCode.CorrectLevel.M}); }catch(_){ el.textContent='Не удалось построить QR-код — используйте ссылку ниже'; } };
   if(window.QRCode) return draw();
   el.textContent='Загружаю QR-код…';
@@ -975,9 +1053,11 @@ function drawQr(){
 }
 function renderSyncBody(){
   const b=document.getElementById('syncBody');
-  if(sync.url){
+  if(!cloudOn()){
+    b.innerHTML = `<p class="note">${mode()==='google'?'Данные синхронизируются через Google-таблицу.':'Данные хранятся только на этом устройстве.'} Облачное хранилище ещё не настроено.</p>`;
+  } else if(mode()==='cloud'){
     b.innerHTML = `
-      <div class="ok-box">${syncState==='err'?'⚠️ Облако подключено, но сейчас недоступно: '+esc(syncErr):'✓ Облако подключено. Изменения сохраняются автоматически и видны на всех подключённых устройствах.'}</div>
+      <div class="ok-box">${syncState==='err'?'⚠️ Облако подключено, но сейчас недоступно: '+esc(syncErr):'✓ Облако подключено. Изменения сохраняются автоматически и сразу появляются на всех подключённых телефонах.'}</div>
       <p class="note"><b style="color:var(--ink)">Подключить телефон:</b> наведите камеру телефона на QR-код и откройте ссылку. Или отправьте ссылку ниже, например, в WhatsApp. Открыть её нужно один раз, в том браузере, где вы будете пользоваться сайтом (Safari или Chrome).</p>
       <div id="qr" style="display:flex;justify-content:center;padding:14px;background:#fff;border-radius:14px;border:1px solid var(--line);margin-bottom:14px;min-height:60px"></div>
       <label class="field"><span>Ссылка для другого телефона</span><input readonly value="${esc(shareLink())}" id="shareIn"></label>
@@ -991,20 +1071,12 @@ function renderSyncBody(){
     drawQr();
   } else {
     b.innerHTML = `
-      <p class="note">Данные будут храниться в вашей Google-таблице — бесплатно и доступно только вам. Настраивается один раз, примерно 5 минут, нужен компьютер.</p>
-      <ol class="steps">
-        <li>Создайте новую Google-таблицу: <a href="https://sheets.new" target="_blank" rel="noopener">sheets.new</a>, назовите её «Бюджет свадьбы».</li>
-        <li>В таблице откройте <b>Расширения → Apps Script</b>.</li>
-        <li>Удалите всё в редакторе и вставьте код целиком:
-          <textarea id="codeBox" spellcheck="false" autocapitalize="off" autocorrect="off" style="display:block;width:100%;height:110px;margin:8px 0;padding:8px;border:1px solid var(--line-strong);border-radius:10px;background:var(--bg);color:var(--ink);font:12px/1.4 ui-monospace,Menlo,monospace;white-space:pre;resize:vertical">${esc(codeText||'Загружаю код…')}</textarea>
-          <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" type="button" id="copyCode" style="min-height:38px;font-size:14px">Скопировать код</button>
-          <a class="btn" style="min-height:38px;font-size:14px;text-decoration:none" href="${CODE_RAW}" target="_blank" rel="noopener">Открыть код отдельно</a></span></li>
-        <li>Сохраните (💾), вверху выберите функцию <b>setup</b> и нажмите <b>▶ Выполнить</b>. Разрешите доступ: «Проверить разрешения» → ваш аккаунт → «Дополнительно» → «Перейти в проект» → «Разрешить».</li>
-        <li>Нажмите <b>Развернуть → Новое развертывание</b>, шестерёнка → <b>Веб-приложение</b>. «Выполнять от имени» — <b>Я</b>, «У кого есть доступ» — <b>Все</b> (не «Все с аккаунтом Google»). Нажмите «Развернуть».</li>
-        <li>Скопируйте <b>URL веб-приложения</b> (заканчивается на <code>/exec</code>) и вставьте ниже.</li>
-      </ol>
-      <label class="field"><span>URL веб-приложения</span><input id="syncUrl" placeholder="https://script.google.com/macros/s/…/exec" inputmode="url" autocomplete="off"></label>
-      <button class="btn primary block" type="button" id="connect">Подключить</button>
+      <p class="note">Облако хранит бюджет в базе данных и сразу показывает изменения на всех телефонах.${mode()==='google'?' Сейчас данные синхронизируются через Google-таблицу — при подключении они перенесутся автоматически.':''}</p>
+      <p class="note"><b style="color:var(--ink)">Облако уже создано на другом телефоне?</b> Откройте на этом телефоне ссылку из окна «Синхронизация» того телефона или вставьте её сюда:</p>
+      <label class="field"><span>Ссылка с другого телефона</span><input id="joinIn" placeholder="https://…#k=…" autocomplete="off" inputmode="url"></label>
+      <button class="btn block" type="button" id="joinBtn">Подключить по ссылке</button>
+      <p class="note" style="margin-top:18px"><b style="color:var(--ink)">Ещё не создано?</b> Создайте облако на одном телефоне, а второй подключите по ссылке.</p>
+      <button class="btn primary block" type="button" id="createBtn">Создать облако</button>
       <p class="note" id="connErr" style="color:var(--bad);margin-top:10px"></p>`;
   }
 }
@@ -1013,35 +1085,16 @@ document.getElementById('syncBody').addEventListener('click', async e=>{
   if(id==='copyLink'){ copy(shareLink()); }
   if(id==='shareLink'){ navigator.share({title:'Бюджет свадьбы', url:shareLink()}).catch(()=>{}); }
   if(id==='syncAgain'){ syncNow(); }
-  if(id==='unlink' && await ask('Отключить облако на этом устройстве? Данные в таблице и на других телефонах останутся.','Отключить')){
-    sync={}; ls.del(SYNC_KEY); if(DEFAULT_SYNC_URL) ls.set('wedding-budget-unlinked','1'); setSync('off'); renderSyncBody(); render();
+  if(id==='createBtn'){ connectCloud(); }
+  if(id==='joinBtn'){
+    const code=codeFrom(document.getElementById('joinIn').value.trim());
+    if(!code){ document.getElementById('connErr').textContent='Нужна ссылка из окна «Синхронизация» другого телефона, в ней есть #k=…'; return; }
+    connectCloud(code);
   }
-  if(id==='copyCode'){
-    const box=document.getElementById('codeBox');
-    if(!codeText){ window.open(CODE_RAW,'_blank'); return; }
-    box.value=codeText;
-    let ok=false;
-    /* Сначала современный способ (вызывается прямо в нажатии, без ожиданий — нужно для Safari) */
-    try{ if(navigator.clipboard && window.isSecureContext){ navigator.clipboard.writeText(codeText).then(()=>toast('Код скопирован — вставьте его в Apps Script'), ()=>fallbackCopy(box)); ok=true; } }catch(_){}
-    if(!ok) fallbackCopy(box);
+  if(id==='unlink' && await ask('Отключить облако на этом устройстве? Данные в облаке и на других телефонах останутся.','Отключить')){
+    stopRealtime(); cloud={}; ls.del(CLOUD_KEY); setSync('off'); renderSyncBody(); render();
   }
-  if(id==='connect'){ connect(document.getElementById('syncUrl').value.trim()); }
 });
-async function connect(url){
-  const err=document.getElementById('connErr'), btn=document.getElementById('connect');
-  url = url.replace(/\s+/g,'');
-  const bad = !/^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/(exec|dev)$/.test(url)
-    ? (/\/home\/|\/edit|projects/.test(url) ? 'Это ссылка на редактор скрипта. Нужен «URL веб-приложения» из окна «Новое развертывание» — он заканчивается на /exec.' : 'Нужна ссылка вида https://script.google.com/macros/s/…/exec')
-    : /\/dev$/.test(url) ? 'Это тестовая ссылка (/dev) — она работает только у вас. Нужна ссылка из «Развернуть → Новое развертывание», заканчивается на /exec.' : '';
-  if(bad){ if(err) err.textContent=bad; return false; }
-  if(btn){ btn.disabled=true; btn.textContent='Проверяю…'; }
-  const prev=sync; sync={url};
-  try{ await api(); }
-  catch(e){ sync=prev; if(err) err.textContent='Не удалось подключиться: '+e.message; if(btn){ btn.disabled=false; btn.textContent='Подключить'; } return false; }
-  ls.set(SYNC_KEY, JSON.stringify(sync)); ls.set(DIRTY_KEY,'1'); ls.del('wedding-budget-unlinked');
-  await syncNow(); render(); renderSyncBody(); toast('Облако подключено');
-  return true;
-}
 async function copy(text, msg='Ссылка скопирована'){
   try{ await navigator.clipboard.writeText(text); toast(msg); }
   catch(_){ const i=document.getElementById('shareIn'); if(i){ i.select(); document.execCommand('copy'); toast(msg); } else toast('Не удалось скопировать'); }
@@ -1050,17 +1103,14 @@ async function copy(text, msg='Ссылка скопирована'){
 /* ================= Запуск ================= */
 load(); render();
 (async ()=>{
-  const m=location.hash.match(/sync=([^&]+)/);
-  if(m){
-    history.replaceState(null,'',location.pathname+location.search);
-    const url=decodeURIComponent(m[1]);
-    if(url!==sync.url){ if(await connect(url)===false) toast('Не удалось подключить облако по ссылке'); return; }
-  }
-  if(sync.url) syncNow(); else setSync('off');
+  const code=codeFrom(location.hash);
+  if(/[#&](k|sync)=/.test(location.hash)) history.replaceState(null,'',location.pathname+location.search);
+  if(code && cloudOn() && code!==cloud.code){ if(await connectCloud(code)===false) openSync(); return; }
+  if(mode()){ syncNow(); startRealtime(); } else setSync('off');
 })();
-setInterval(()=>{ if(sync.url && document.visibilityState==='visible' && !inflight) syncNow(); }, 30000);
-document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && sync.url) syncNow(); });
-addEventListener('online', ()=>sync.url && syncNow());
+setInterval(()=>{ if(mode() && document.visibilityState==='visible' && !inflight) syncNow(); }, 30000);
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && mode()) syncNow(); });
+addEventListener('online', ()=>mode() && syncNow());
 addEventListener('storage', e=>{ if(e.key===KEY){ load(); render(); } });
 </script>
 </body>
