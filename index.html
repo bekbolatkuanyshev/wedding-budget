@@ -63,6 +63,9 @@ h1{font-family:"Cormorant Garamond",Georgia,serif;font-weight:600;font-size:clam
 .sync.err .dot,.sync.off .dot{background:var(--bad)}
 .sync.off{color:var(--bad);border-color:var(--bad-soft)}
 @keyframes pulse{50%{opacity:.3}}
+#loading{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;gap:10px;background:var(--bg);color:var(--muted);font-size:16px}
+#loading[hidden]{display:none}
+#loading .dot{width:10px;height:10px;border-radius:50%;background:var(--warn);animation:pulse 1s infinite}
 #reloadBtn.spin{animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 
 .menu-wrap{position:relative}
@@ -1028,25 +1031,35 @@ function newCode(){
 
 /* Создать облако (code не задан) или подключиться к существующему по коду из ссылки */
 async function connectCloud(code){
+  const joining=!!code;
   document.querySelectorAll('#createBtn,#joinBtn').forEach(b=>b.disabled=true);
   /* окно перерисовывается во время подключения, поэтому ищем поле ошибки заново */
   const fail = msg => { renderSyncBody(); const err=document.getElementById('connErr'); if(err) err.textContent=msg; toast(msg); return false; };
   try{
-    if(code){ if(!await rpc('get_budget',{p_code:code})) return fail('Облако по этой ссылке не найдено. Скопируйте ссылку заново.'); }
-    else code=newCode();
-    /* Переносим всё, что есть в Google-таблице, — ничего не потеряется */
-    if(sync.url){ try{ const j=await api(); if(j.data){ state=migrate(merge(j.data,state)); saveLocal(); } }catch(_){} }
+    if(joining){ if(!await rpc('get_budget',{p_code:code})) return fail('Бюджет по этой ссылке не найден. Попросите прислать ссылку заново.'); }
+    /* При создании облака переносим всё, что есть в Google-таблице, — ничего не потеряется.
+       По ссылке подключаемся сразу: облако уже содержит эти данные. */
+    if(!joining){
+      code=newCode();
+      if(sync.url){ try{ const j=await api(); if(j.data){ state=migrate(merge(j.data,state)); saveLocal(); } }catch(_){} }
+    }
   }catch(e){ return fail('Не удалось подключиться: '+e.message); }
   const prev=cloud; cloud={code}; saveCloud(); ls.set(DIRTY_KEY,'1');
+  for(let i=0; i<100 && inflight; i++) await new Promise(r=>setTimeout(r,100));
   await syncNow();
   if(syncState==='err'){ cloud=prev; prev.code?saveCloud():ls.del(CLOUD_KEY); mode()?syncNow():setSync('off'); return fail('Не удалось подключиться: '+syncErr); }
   sync={}; ls.del(SYNC_KEY); ls.set('wedding-budget-unlinked','1');
-  startRealtime(); render(); renderSyncBody(); toast('Облако подключено');
+  startRealtime(); render(); renderSyncBody(); toast(joining ? 'Бюджет загружен' : 'Облако подключено');
   return true;
 }
 /* Облако уже создано, поэтому новые телефоны подключаются только по ссылке.
    Создать новое облако можно, открыв сайт с #new-cloud в адресе. */
 const allowCreate = /new-cloud/.test(location.hash);
+function showLoading(on){
+  let el=document.getElementById('loading');
+  if(!el){ el=document.createElement('div'); el.id='loading'; el.innerHTML='<span class="dot"></span><span>Загружаю бюджет…</span>'; document.body.appendChild(el); }
+  el.hidden=!on;
+}
 const codeFrom = s => (String(s).match(/(?:^|[#&?]k=)([\w-]{24,64})(?:$|&)/)||[])[1];
 
 function openSync(){ renderSyncBody(); document.getElementById('syncDlg').showModal(); }
@@ -1122,7 +1135,12 @@ load(); render();
 (async ()=>{
   const code=codeFrom(location.hash);
   if(/[#&](k=|sync=|new-cloud)/.test(location.hash)) history.replaceState(null,'',location.pathname+location.search);
-  if(code && cloudOn() && code!==cloud.code){ if(await connectCloud(code)===false) openSync(); return; }
+  if(code && cloudOn() && code!==cloud.code){
+    /* Открыли присланную ссылку: сразу загружаем бюджет, ничего нажимать не нужно */
+    showLoading(true); const ok=await connectCloud(code); showLoading(false);
+    if(ok===false) openSync();
+    return;
+  }
   if(mode()){ syncNow(); startRealtime(); } else setSync('off');
 })();
 setInterval(()=>{ if(mode() && document.visibilityState==='visible' && !inflight) syncNow(); }, 30000);
