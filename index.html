@@ -1567,6 +1567,8 @@ document.getElementById('fileIn').onchange = async e=>{
 const SUPABASE_URL = 'https://ztbnczwjjnzcpzmrxkqq.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_TXtR-ybSwROqYMRE9LCE9g_5ly0YRlc';
 const CLOUD_KEY = 'wedding-budget-cloud';
+/* Общее облако: устройства без подключения переходят в него сами, без ссылки */
+const DEFAULT_CLOUD_CODE = '';
 const cloudOn = () => !!(SUPABASE_URL && SUPABASE_KEY);
 let cloud = (()=>{ try{ return JSON.parse(ls.get(CLOUD_KEY))||{}; }catch(e){ return {}; } })();
 const saveCloud = () => ls.set(CLOUD_KEY, JSON.stringify(cloud));
@@ -1697,10 +1699,10 @@ async function connectCloud(code){
     if(joining){ if(!await rpc('get_budget',{p_code:code})) return fail('Бюджет по этой ссылке не найден. Попросите прислать ссылку заново.'); }
     /* При создании облака переносим всё, что есть в Google-таблице, — ничего не потеряется.
        По ссылке подключаемся сразу: облако уже содержит эти данные. */
-    if(!joining){
-      code=newCode();
-      if(sync.url){ try{ const j=await api(); if(j.data){ state=migrate(merge(j.data,state)); saveLocal(); } }catch(_){} }
-    }
+    if(!joining) code=newCode();
+    /* Переносим всё, что есть в Google-таблице, — и при создании облака, и при подключении к нему.
+       Записи объединяются по одной, поэтому ничего не теряется и не дублируется. */
+    if(sync.url){ try{ const j=await api(); if(j.data){ state=migrate(merge(j.data,state)); saveLocal(); } }catch(_){} }
   }catch(e){ return fail('Не удалось подключиться: '+e.message); }
   const prev=cloud; cloud={code}; saveCloud(); ls.set(DIRTY_KEY,'1');
   for(let i=0; i<100 && inflight; i++) await new Promise(r=>setTimeout(r,100));
@@ -1799,11 +1801,24 @@ load(); archiveVault(vaultItem()); render();
     if(ok===false) openSync();
     return;
   }
+  if(!cloud.code && DEFAULT_CLOUD_CODE && cloudOn() && ls.get('wedding-budget-cloud-off')!=='1'){
+    showLoading(true); const ok=await connectCloud(DEFAULT_CLOUD_CODE); showLoading(false);
+    if(ok!==false) return;
+  }
   if(mode()){ syncNow(); startRealtime(); } else setSync('off');
 })();
 setInterval(()=>{ if(mode() && document.visibilityState==='visible' && !inflight) syncNow(); }, 30000);
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && mode()) syncNow(); });
 addEventListener('online', ()=>mode() && syncNow());
+/* Ссылку на облако открыли в уже открытой вкладке */
+addEventListener('hashchange', async ()=>{
+  const code=codeFrom(location.hash);
+  if(!code || !cloudOn()) return;
+  history.replaceState(null,'',location.pathname+location.search);
+  if(code===cloud.code) return syncNow();
+  showLoading(true); const ok=await connectCloud(code); showLoading(false);
+  if(ok===false) openSync();
+});
 addEventListener('storage', e=>{ if(e.key===KEY){ load(); render(); } });
 </script>
 </body>
