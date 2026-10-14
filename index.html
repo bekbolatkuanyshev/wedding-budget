@@ -63,6 +63,7 @@ h1{font-family:"Cormorant Garamond",Georgia,serif;font-weight:600;font-size:clam
 .sync.err .dot,.sync.off .dot{background:var(--bad)}
 .sync.off{color:var(--bad);border-color:var(--bad-soft)}
 @keyframes pulse{50%{opacity:.3}}
+#reloadBtn.spin{animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 
 .menu-wrap{position:relative}
 .menu{position:absolute;right:0;top:calc(100% + 6px);z-index:20;min-width:240px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.15);padding:6px;display:none}
@@ -141,7 +142,7 @@ footer{font-size:13px;color:var(--muted);text-align:center;margin-top:28px}
   .head-actions{display:contents}
   .head-actions .btn.primary{display:none}
   .menu-wrap{order:2}
-  .sync{order:3;max-width:none}
+  .sync,#reloadBtn{order:3;max-width:none}
   .summary{grid-template-columns:minmax(0,1fr)}
   .stats{padding:2px 16px}
   .stat{padding:9px 0}
@@ -245,7 +246,7 @@ dialog::backdrop{background:rgba(25,15,5,.5)}
 .toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
 .toast button{border:0;background:none;color:var(--accent);font-weight:600;cursor:pointer;padding:6px;filter:brightness(1.6)}
 @media (min-width:761px){.toast{bottom:24px}}
-@media print{.head-actions,.filters,.fab,.add-row,.banner,.sync{display:none!important}body{background:#fff}.card{box-shadow:none}}
+@media print{.head-actions,.filters,.fab,.add-row,.banner,.sync,#reloadBtn{display:none!important}body{background:#fff}.card{box-shadow:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -255,10 +256,12 @@ dialog::backdrop{background:rgba(25,15,5,.5)}
     <h1>Бюджет свадьбы</h1>
     <div class="head-actions">
       <button class="sync off" id="syncPill" type="button"><span class="dot"></span><span id="syncText">Только на этом устройстве</span></button>
+      <button class="btn icon ghost" id="reloadBtn" type="button" aria-label="Обновить данные" title="Обновить данные">↻</button>
       <button class="btn primary" id="addItem" type="button">+ Затрата</button>
       <div class="menu-wrap">
         <button class="btn icon ghost" id="menuBtn" type="button" aria-label="Меню" aria-haspopup="true" aria-expanded="false">⋯</button>
         <div class="menu" id="menu" role="menu">
+          <button type="button" data-act="reload" role="menuitem">🔄 Обновить данные</button>
           <button type="button" data-act="sync" role="menuitem">☁️ Синхронизация устройств</button>
           <button type="button" data-act="event" role="menuitem">➕ Новое мероприятие</button>
           <hr>
@@ -622,6 +625,7 @@ document.getElementById('addItem').onclick = ()=> tab==='gifts' ? openGift(null)
 document.getElementById('fab').onclick = ()=> tab==='gifts' ? openGift(null) : openItem(null);
 document.getElementById('banner').addEventListener('click', e=>{ if(e.target.id==='bannerBtn') openSync(); if(e.target.id==='bannerX'){ ls.set('wedding-budget-banner2','hidden'); renderBanner(); } });
 document.getElementById('syncPill').onclick = ()=>openSync();
+document.getElementById('reloadBtn').onclick = ()=>reloadData();
 
 /* Меню */
 const menu=document.getElementById('menu'), menuBtn=document.getElementById('menuBtn');
@@ -631,6 +635,7 @@ document.addEventListener('click', e=>{ if(!e.target.closest('.menu-wrap')) togg
 document.addEventListener('keydown', e=>{ if(e.key==='Escape' && menu.classList.contains('open')){ toggleMenu(false); menuBtn.focus(); } });
 menu.addEventListener('click', async e=>{
   const a=e.target.closest('[data-act]')?.dataset.act; if(!a) return; toggleMenu(false);
+  if(a==='reload') reloadData();
   if(a==='sync') openSync();
   if(a==='event') openEvent(null);
   if(a==='csv') exportCsv();
@@ -1097,6 +1102,16 @@ document.getElementById('syncBody').addEventListener('click', async e=>{
     stopRealtime(); cloud={}; ls.del(CLOUD_KEY); setSync('off'); renderSyncBody(); render();
   }
 });
+/* Кнопка «Обновить»: подтянуть свежие данные из облака сейчас */
+async function reloadData(){
+  if(!mode()){ location.reload(); return; }
+  const btn=document.getElementById('reloadBtn');
+  btn.classList.add('spin'); btn.disabled=true;
+  for(let i=0; i<100 && inflight; i++) await new Promise(r=>setTimeout(r,100));
+  await syncNow();
+  btn.classList.remove('spin'); btn.disabled=false;
+  toast(syncState==='ok' ? 'Данные обновлены' : 'Не удалось обновить: '+syncErr);
+}
 async function copy(text, msg='Ссылка скопирована'){
   try{ await navigator.clipboard.writeText(text); toast(msg); }
   catch(_){ const i=document.getElementById('shareIn'); if(i){ i.select(); document.execCommand('copy'); toast(msg); } else toast('Не удалось скопировать'); }
