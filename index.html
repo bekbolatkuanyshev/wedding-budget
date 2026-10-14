@@ -972,7 +972,51 @@ async function openData(key, v){
   return JSON.parse(tdec.decode(pt));
 }
 const pFresh = () => ({ v:1, accounts:[], incomes:[], personal:[], targetDate:'', includeGifts:false, skipEvents:[], sIncome:[], sFixed:[], sFlex:[], sOther:[], saveMode:'auto', saveAmount:0 });
-const pNorm = d => { const f=pFresh(), o={...f, ...(d||{})}; ['accounts','incomes','personal','skipEvents','sIncome','sFixed','sFlex','sOther'].forEach(k=>{ if(!Array.isArray(o[k])) o[k]=[]; }); return o; };
+const pNorm = d => { const f=pFresh(), o={...f, ...(d||{})}; ['accounts','incomes','personal','skipEvents','sIncome','sFixed','sFlex','sOther'].forEach(k=>{ if(!Array.isArray(o[k])) o[k]=[]; }); if(!o.deleted || typeof o.deleted!=='object') o.deleted={}; return o; };
+/* Записи объединяются по одной (как в общем бюджете), а не перезаписываются целиком:
+   так старая копия на другом устройстве не может стереть новые записи. */
+const PLISTS = ['accounts','incomes','personal','sIncome','sFixed','sFlex','sOther'];
+function mergeP(base, other){
+  const out = pNorm(clone(base)), o = pNorm(clone(other));
+  const del = {...out.deleted};
+  Object.entries(o.deleted).forEach(([k,t])=>{ del[k] = Math.max(del[k]||0, t); });
+  out.deleted = del;
+  PLISTS.forEach(k=>{
+    const m = new Map();
+    [...out[k], ...o[k]].forEach(x=>{ const c=m.get(x.id); if(!c || (x.u||0) > (c.u||0)) m.set(x.id, x); });
+    out[k] = [...m.values()].filter(x=>!(del[x.id] >= (x.u||0)));
+  });
+  return out;
+}
+const pLists = d => canon(PLISTS.map(k=>d[k]));
+/* Прошлые зашифрованные копии на этом устройстве — из них можно вернуть потерянные записи */
+const PARCH = 'wedding-budget-vault-archive';
+const readArch = () => { try{ return JSON.parse(ls.get(PARCH))||[]; }catch(_){ return []; } };
+function archiveVault(v){
+  if(!v || !v.ct) return;
+  const a = readArch(); if(a.some(x=>x.ct===v.ct)) return;
+  a.unshift({salt:v.salt, iv:v.iv, ct:v.ct, at:v.updatedAt});
+  ls.set(PARCH, JSON.stringify(a.slice(0,15)));
+}
+let pSeen = null; /* последняя копия, которую видело это устройство */
+const blobOf = v => ({salt:v.salt, iv:v.iv, ct:v.ct, updatedAt:v.updatedAt});
+function noteVault(){ const v=vaultItem(); if(v && v.ct!==pSeen?.ct){ if(pSeen) archiveVault(pSeen); pSeen=blobOf(v); } }
+async function pRecover(pass){
+  const v = vaultItem(); if(!pKey || !pData || !v) return 0;
+  const keys = {[v.salt]:pKey}; let merged = pData;
+  for(const a of readArch()){
+    if(a.ct===v.ct) continue;
+    let k = keys[a.salt];
+    if(!k && pass){ try{ k = keys[a.salt] = await deriveKey(pass, fromB64(a.salt)); }catch(_){} }
+    if(!k) continue;
+    try{ merged = mergeP(merged, await openData(k, a)); }catch(_){}
+  }
+  if(pLists(merged)===pLists(pData)) return 0;
+  const count = d => PLISTS.reduce((n,k)=>n+d[k].length,0), added = count(merged)-count(pData);
+  pData = merged; await pSave();
+  if(added>0) toast(`Восстановлено записей: ${added}`);
+  return added;
+}
 const ss = { get(k){ try{ return sessionStorage.getItem(k); }catch(_){ return null; } }, set(k,v){ try{ sessionStorage.setItem(k,v); }catch(_){} }, del(k){ try{ sessionStorage.removeItem(k); }catch(_){} } };
 async function rememberKey(key, persist){
   const raw = toB64(await crypto.subtle.exportKey('raw', key));
@@ -985,24 +1029,34 @@ async function tryStoredKey(){
   const raw=storedKey(), v=vaultItem(); if(!raw || !v) return false;
   try{
     const key = await crypto.subtle.importKey('raw', fromB64(raw), 'AES-GCM', true, ['encrypt','decrypt']);
-    pData = pNorm(await openData(key, v)); pKey = key; pVaultAt = v.updatedAt; return true;
+    pData = pNorm(await openData(key, v)); pKey = key; pVaultAt = v.updatedAt;
   }catch(_){ forgetKey(); return false; }
+  await pRecover();
+  return true;
 }
 /* Следим за изменениями с других устройств: расшифровываем заново или блокируем, если сменили пароль */
 function pCheck(){
+  noteVault();
   const v = vaultItem();
   if(pKey && !v){ pKey=null; pData=null; forgetKey(); return; }
   if(!pKey && v && !pTried && storedKey()){ pTried=true; tryStoredKey().then(ok=>{ if(ok) render(); }); return; }
   if(pKey && v && v.updatedAt!==pVaultAt && !pBusy){
     pBusy=true; const at=v.updatedAt;
-    openData(pKey, v).then(d=>{ pData=pNorm(d); pVaultAt=at; }, ()=>{ pKey=null; pData=null; forgetKey(); if(tab==='private') toast('Пароль сменили на другом устройстве — введите новый'); })
+    openData(pKey, v).then(async d=>{
+        const remote = pNorm(d), merged = pData ? mergeP(remote, pData) : remote;
+        pData = merged; pVaultAt = at;
+        /* у этого устройства были записи, которых нет в облаке, — отправляем их обратно */
+        if(pLists(merged)!==pLists(remote)) await pSave();
+      }, ()=>{ pKey=null; pData=null; forgetKey(); if(tab==='private') toast('Пароль сменили на другом устройстве — введите новый'); })
       .finally(()=>{ pBusy=false; if(tab==='private') render(); });
   }
 }
 async function pSave(){
   if(!pKey || !pData) return;
   const v = vaultItem(); if(!v) return;
+  if(v.updatedAt!==pVaultAt){ try{ pData = mergeP(pData, await openData(pKey, v)); }catch(_){} }
   Object.assign(v, await sealData(pKey, pData), {updatedAt:Date.now()});
+  pSeen = blobOf(v);
   pVaultAt = v.updatedAt; commit();
 }
 const sumA = l => l.reduce((a,x)=>a+(Number(x.amount)||0),0);
@@ -1333,6 +1387,13 @@ async function pSubmit(f){
   btn.disabled=true; btn.textContent= v ? 'Проверяю…' : 'Создаю…';
   try{
     if(!v){
+      /* Сначала сверяемся с облаком: раздел мог быть создан на другом устройстве */
+      if(mode()){
+        btn.textContent='Проверяю облако…';
+        await syncNow();
+        if(vaultItem()){ render(); const e2=document.getElementById('pErr'); if(e2) e2.textContent='Личный раздел уже создан на другом устройстве — введите его пароль'; return; }
+        if(syncState==='err') throw new Error('Нет связи с облаком. Создавать раздел без связи нельзя: можно затереть раздел с другого устройства.');
+      }
       const salt = crypto.getRandomValues(new Uint8Array(16)), key = await deriveKey(p1, salt);
       pData = pFresh(); pKey = key;
       const item = {id:'vault', kind:'vault', salt:toB64(salt), ...(await sealData(key, pData)), updatedAt:Date.now()};
@@ -1343,6 +1404,7 @@ async function pSubmit(f){
       let d; try{ d = await openData(key, v); }catch(_){ throw new Error('Неверный пароль'); }
       pData = pNorm(d); pKey = key; pVaultAt = v.updatedAt; pTried = true;
       await rememberKey(key, remember); ls.set(PTAB_LS,'1'); render();
+      pRecover(p1).then(n=>{ if(n) render(); });
     }
   }catch(e){ err.textContent=e.message; btn.disabled=false; btn.textContent=lbl; f.p1.select(); }
 }
@@ -1408,24 +1470,26 @@ pForm.addEventListener('submit', e=>{
   if(pEdit.type==='per') data.paid=pForm.paid.checked;
   if(c.period) data.period=pForm.period.value;
   const x = pEdit.id && list.find(i=>i.id===pEdit.id);
-  if(x) Object.assign(x, data); else list.push({id:uid(), ...data});
+  if(x) Object.assign(x, data, {u:Date.now()}); else list.push({id:uid(), ...data, u:Date.now()});
   pDlg.close(); pSave(); toast('Сохранено');
 });
 document.getElementById('pDel').onclick = ()=>{
   if(!pData) return;
-  const c=PT[pEdit.type], snap=clone(pData), x=pData[c.key].find(i=>i.id===pEdit.id); if(!x) return;
-  pData[c.key] = pData[c.key].filter(i=>i!==x);
+  const c=PT[pEdit.type], x=pData[c.key].find(i=>i.id===pEdit.id); if(!x) return;
+  pData[c.key] = pData[c.key].filter(i=>i!==x); pData.deleted[x.id]=Date.now();
   pDlg.close(); pSave();
-  toast(`«${x.name}» удалено`, ()=>{ if(pKey){ pData=snap; pSave(); } });
+  toast(`«${x.name}» удалено`, ()=>{ if(pKey && pData){ delete pData.deleted[x.id]; pData[c.key].push({...x, u:Date.now()}); pSave(); } });
 };
 document.getElementById('pGot').onclick = ()=>{
   if(!pData) return;
   const x=pData.incomes.find(i=>i.id===pEdit.id); if(!x) return;
-  const snap=clone(pData);
-  pData.incomes = pData.incomes.filter(i=>i!==x);
-  pData.accounts.push({ id:uid(), name:x.name, amount:x.amount, note:x.note || '' });
+  const acc = { id:uid(), name:x.name, amount:x.amount, note:x.note || '', u:Date.now() };
+  pData.incomes = pData.incomes.filter(i=>i!==x); pData.deleted[x.id]=Date.now();
+  pData.accounts.push(acc);
   pDlg.close(); pSave();
-  toast('Перенесено в «Мои деньги»', ()=>{ if(pKey){ pData=snap; pSave(); } });
+  toast('Перенесено в «Мои деньги»', ()=>{ if(pKey && pData){
+    pData.accounts = pData.accounts.filter(i=>i.id!==acc.id); pData.deleted[acc.id]=Date.now();
+    delete pData.deleted[x.id]; pData.incomes.push({...x, u:Date.now()}); pSave(); } });
 };
 
 /* Смена пароля */
@@ -1725,7 +1789,7 @@ async function copy(text, msg='Ссылка скопирована'){
 }
 
 /* ================= Запуск ================= */
-load(); render();
+load(); archiveVault(vaultItem()); render();
 (async ()=>{
   const code=codeFrom(location.hash);
   if(/[#&](k=|sync=|new-cloud)/.test(location.hash)) history.replaceState(null,'',location.pathname+location.search);
