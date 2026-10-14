@@ -933,7 +933,7 @@ async function rpc(fn, args){
   catch(e){ throw new Error(navigator.onLine===false ? 'нет интернета' : 'сервер недоступен'); }
   const text = await r.text();
   let j=null; try{ j = text ? JSON.parse(text) : null; }catch(_){}
-  if(!r.ok) throw new Error(r.status===404 ? 'база ещё не настроена (нет функций get_budget / save_budget)' : 'ошибка сервера: '+((j && (j.message||j.hint)) || r.status));
+  if(!r.ok) throw new Error(r.status===404 ? 'база ещё не настроена: в Supabase → SQL Editor выполните SQL из supabase/migrations' : 'ошибка сервера: '+((j && (j.message||j.hint)) || r.status));
   return j;
 }
 
@@ -1028,9 +1028,9 @@ function newCode(){
 
 /* Создать облако (code не задан) или подключиться к существующему по коду из ссылки */
 async function connectCloud(code){
-  const err=document.getElementById('connErr');
-  const btns=[...document.querySelectorAll('#createBtn,#joinBtn')]; btns.forEach(b=>b.disabled=true);
-  const fail = msg => { if(err) err.textContent=msg; else toast(msg); btns.forEach(b=>b.disabled=false); return false; };
+  document.querySelectorAll('#createBtn,#joinBtn').forEach(b=>b.disabled=true);
+  /* окно перерисовывается во время подключения, поэтому ищем поле ошибки заново */
+  const fail = msg => { renderSyncBody(); const err=document.getElementById('connErr'); if(err) err.textContent=msg; toast(msg); return false; };
   try{
     if(code){ if(!await rpc('get_budget',{p_code:code})) return fail('Облако по этой ссылке не найдено. Скопируйте ссылку заново.'); }
     else code=newCode();
