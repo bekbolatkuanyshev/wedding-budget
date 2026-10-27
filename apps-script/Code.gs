@@ -107,7 +107,7 @@ function writeTable_(d) {
   s.clear();
   var rows = [['Мероприятие', 'Расход', 'План', 'Итог', 'Оплачено', 'Осталось', 'Статус', 'Заметка']];
   d.events.forEach(function (ev) {
-    d.items.filter(function (it) { return it.event === ev.id && it.kind !== 'gift'; }).forEach(function (it) {
+    d.items.filter(function (it) { return it.event === ev.id && !it.kind; }).forEach(function (it) {
       var paid = (it.payments || []).reduce(function (a, p) { return a + (Number(p.amount) || 0); }, 0);
       var cost = it.actual != null ? it.actual : (it.planned || 0);
       rows.push([txt_(ev.name), txt_(it.name), it.planned || 0, it.actual != null ? it.actual : '', paid,

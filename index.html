@@ -177,6 +177,26 @@ footer{font-size:13px;color:var(--muted);text-align:center;margin-top:28px}
 @media (max-width:760px){.tabs{max-width:none}}
 @media (max-width:760px){#giftDlg .dlg-f .right [data-close]{display:none}}
 
+/* Guests */
+.chip.no{background:var(--bad-soft);color:var(--bad)}
+.add-pair{display:flex}
+.add-pair .add-row:first-child{flex:1}
+.add-pair .add-row:last-child{width:auto;flex:none;color:var(--muted);border-left:1px solid var(--line)}
+.seg{display:flex;gap:6px}
+.seg label{flex:1;position:relative}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg span{display:flex;align-items:center;justify-content:center;min-height:46px;border:1px solid var(--line-strong);border-radius:12px;font-size:14.5px;cursor:pointer;text-align:center;padding:0 6px;background:var(--bg)}
+.seg input:checked+span{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.seg input[value=yes]:checked+span{background:var(--ok);border-color:var(--ok);color:#fff}
+.seg input[value=no]:checked+span{background:var(--bad);border-color:var(--bad);color:#fff}
+.seg input:focus-visible+span{box-shadow:var(--focus)}
+.stepper{display:flex;align-items:center;gap:6px}
+.stepper input{text-align:center;font-weight:600}
+.stepper .btn{width:46px;padding:0;font-size:20px;flex:none}
+.links{display:flex;gap:8px;flex-wrap:wrap;margin:-4px 0 14px}
+.links:empty{display:none}
+.links .btn{text-decoration:none;min-height:40px;font-size:14px;color:var(--ink)}
+
 /* Gift rows */
 .gthead,.grow{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1.4fr) 150px;gap:12px;align-items:center;padding:0 18px}
 .gthead{font-size:12px;color:var(--muted);padding-top:10px;padding-bottom:10px;border-bottom:1px solid var(--line)}
@@ -214,8 +234,11 @@ label.kv:hover{background:var(--accent-soft)}
 .hero .plan{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:14px;color:var(--muted)}
 .hero .plan strong{color:var(--ink);font-weight:600}
 @media (max-width:760px){
-  .tabs button{font-size:14px;gap:4px;padding:0 4px;white-space:nowrap}
-  .tabs:has(#tab-private:not([hidden])) b{display:none}
+  .tabs{overflow-x:auto;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tabs button{font-size:13.5px;gap:3px;padding:0 6px;white-space:nowrap;flex:1 0 auto}
+  .tabs:not(.sub) b{display:none}
+  #guDlg .dlg-f .right [data-close],#buDlg .dlg-f .right [data-close]{display:none}
   #pDlg .dlg-f .right [data-close]{display:none}
 }
 
@@ -319,6 +342,7 @@ dialog::backdrop{background:rgba(25,15,5,.5)}
           <hr>
           <button type="button" data-act="csv" role="menuitem">📊 Скачать расходы для Excel</button>
           <button type="button" data-act="csvg" role="menuitem">🎁 Скачать подарки для Excel</button>
+          <button type="button" data-act="csvgu" role="menuitem">👥 Скачать гостей для Excel</button>
           <button type="button" data-act="export" role="menuitem">⬇️ Резервная копия</button>
           <button type="button" data-act="import" role="menuitem">⬆️ Восстановить из копии</button>
           <hr>
@@ -334,6 +358,7 @@ dialog::backdrop{background:rgba(25,15,5,.5)}
   <nav class="tabs" role="tablist" aria-label="Разделы">
     <button type="button" role="tab" data-tab="budget" id="tab-budget">💰 Расходы</button>
     <button type="button" role="tab" data-tab="gifts" id="tab-gifts">🎁 Подарки <b id="giftCount">0</b></button>
+    <button type="button" role="tab" data-tab="guests" id="tab-guests">👥 Гости <b id="guestCount">0</b></button>
     <button type="button" role="tab" data-tab="private" id="tab-private" hidden>🔒 Личное</button>
   </nav>
 
@@ -401,6 +426,59 @@ dialog::backdrop{background:rgba(25,15,5,.5)}
     <button type="button" class="btn ghost" id="giftMore">Сохранить и ещё</button>
     <div class="right"><button type="button" class="btn" data-close>Отмена</button><button type="submit" class="btn primary">Сохранить</button></div>
   </div>
+</form></dialog>
+
+<!-- Гость -->
+<dialog id="guDlg" aria-labelledby="guTitle"><form id="guForm" novalidate style="display:contents">
+  <div class="dlg-h"><h3 id="guTitle">Гость</h3><button type="button" class="btn icon ghost" data-close aria-label="Закрыть">×</button></div>
+  <div class="dlg-b">
+    <label class="field"><span>Кто</span><input name="name" required autocomplete="off" placeholder="Например: Асқар аға с семьёй" enterkeyhint="next"></label>
+    <div class="row2b">
+      <div class="field"><span>Сколько человек</span>
+        <div class="stepper"><button type="button" class="btn" data-step="-1" data-for="count" aria-label="Меньше">−</button><input name="count" inputmode="numeric" value="1" aria-label="Сколько человек"><button type="button" class="btn" data-step="1" data-for="count" aria-label="Больше">+</button></div>
+      </div>
+      <label class="field"><span>Мероприятие</span><select name="event" id="guEvent"></select></label>
+    </div>
+    <div class="field"><span>Ответ</span>
+      <div class="seg" role="radiogroup" aria-label="Ответ">
+        <label><input type="radio" name="rsvp" value=""><span>Ждём</span></label>
+        <label><input type="radio" name="rsvp" value="yes"><span>Придут</span></label>
+        <label><input type="radio" name="rsvp" value="no"><span>Не придут</span></label>
+      </div>
+    </div>
+    <div class="field" id="guComingF"><span>Сколько из них придут</span>
+      <div class="stepper" style="max-width:200px"><button type="button" class="btn" data-step="-1" data-for="coming" aria-label="Меньше">−</button><input name="coming" inputmode="numeric" aria-label="Сколько придут"><button type="button" class="btn" data-step="1" data-for="coming" aria-label="Больше">+</button></div>
+    </div>
+    <label class="toggle"><span>Приглашение отправлено<small>Позвонили, передали или отправили приглашение</small></span><input type="checkbox" name="invited" role="switch"></label>
+    <div class="row2b">
+      <label class="field"><span>Группа</span><input name="group" list="guGroupList" autocomplete="off" placeholder="Родственники"><datalist id="guGroupList"></datalist></label>
+      <label class="field"><span>Стол</span><input name="table" autocomplete="off" placeholder="№"></label>
+    </div>
+    <label class="field"><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="+7 7__ ___ __ __"></label>
+    <div class="links" id="guLinks"></div>
+    <label class="field"><span>Заметка</span><textarea name="note" rows="2" placeholder="Кто это, с кем придут, что важно"></textarea></label>
+  </div>
+  <div class="dlg-f">
+    <button type="button" class="btn danger ghost" id="delGuest">Удалить</button>
+    <button type="button" class="btn ghost" id="guMore">Сохранить и ещё</button>
+    <div class="right"><button type="button" class="btn" data-close>Отмена</button><button type="submit" class="btn primary">Сохранить</button></div>
+  </div>
+</form></dialog>
+
+<!-- Гости списком -->
+<dialog id="buDlg" aria-labelledby="buTitle"><form id="buForm" novalidate style="display:contents">
+  <div class="dlg-h"><h3 id="buTitle">Гости списком</h3><button type="button" class="btn icon ghost" data-close aria-label="Закрыть">×</button></div>
+  <div class="dlg-b">
+    <label class="field"><span>Каждый гость — с новой строки. Количество человек можно указать через запятую</span>
+      <textarea name="list" rows="8" placeholder="Асқар аға, 2&#10;Гүлнар апа&#10;Ерлан с семьёй, 4"></textarea></label>
+    <p class="note" id="buInfo" style="margin-top:-6px"></p>
+    <div class="row2b">
+      <label class="field"><span>Мероприятие</span><select name="event" id="buEvent"></select></label>
+      <label class="field"><span>Группа</span><input name="group" list="buGroupList" autocomplete="off" placeholder="Необязательно"><datalist id="buGroupList"></datalist></label>
+    </div>
+    <label class="toggle"><span>Приглашения уже отправлены</span><input type="checkbox" name="invited" role="switch"></label>
+  </div>
+  <div class="dlg-f"><div class="right"><button type="button" class="btn" data-close>Отмена</button><button type="submit" class="btn primary">Добавить</button></div></div>
 </form></dialog>
 
 <!-- Личный раздел: запись -->
@@ -555,7 +633,7 @@ const pct = (a,b) => b ? Math.min(100, a/b*100) : 0;
 
 /* ================= Отрисовка ================= */
 let filter = '', gFilter = '';
-const TABS = ['budget','gifts','private'];
+const TABS = ['budget','gifts','guests','private'];
 let tab = (()=>{ const h=location.hash.replace('#',''); return TABS.includes(h) ? h : (TABS.includes(ls.get('wedding-budget-tab')) ? ls.get('wedding-budget-tab') : 'budget'); })();
 function setTab(t){
   tab=t; ls.set('wedding-budget-tab',t);
@@ -565,9 +643,10 @@ function setTab(t){
 function render(){
   document.querySelectorAll('.tabs [data-tab]').forEach(b=>b.setAttribute('aria-selected', b.dataset.tab===tab));
   document.getElementById('giftCount').textContent = GIFTS().length;
-  const addLbl = tab==='gifts' ? '+ Подарок' : '+ Затрата';
+  document.getElementById('guestCount').textContent = GUESTS().length;
+  const addLbl = tab==='gifts' ? '+ Подарок' : tab==='guests' ? '+ Гость' : '+ Затрата';
   document.getElementById('addItem').textContent = addLbl; document.getElementById('fab').textContent = addLbl;
-  document.getElementById('q').placeholder = tab==='gifts' ? 'Поиск по имени или подарку' : 'Поиск затраты';
+  document.getElementById('q').placeholder = tab==='gifts' ? 'Поиск по имени или подарку' : tab==='guests' ? 'Поиск по имени, группе, телефону' : 'Поиск затраты';
   renderBanner();
   const priv = tab==='private';
   document.getElementById('tab-private').hidden = !(priv || ls.get(PTAB_LS)==='1');
@@ -578,6 +657,7 @@ function render(){
   if(priv) return renderPrivate();
   document.getElementById('psub').innerHTML = '';
   if(tab==='gifts') return renderGifts();
+  if(tab==='guests') return renderGuests();
   const items = EXP();
   const T = totals(items), p = pct(T.paid,T.cost);
   document.getElementById('summary').innerHTML = `
@@ -710,21 +790,26 @@ document.getElementById('events').addEventListener('click', e=>{
   if(e.target.closest('#pSetDate')){ document.getElementById('pDate')?.focus(); document.getElementById('pDate')?.showPicker?.(); return; }
   const row=e.target.closest('.row'), add=e.target.closest('[data-add]'), ev=e.target.closest('[data-ev]');
   const grow=e.target.closest('[data-gid]'), addg=e.target.closest('[data-addg]');
+  const gu=e.target.closest('[data-guid]'), addgu=e.target.closest('[data-addgu]'), bulk=e.target.closest('[data-bulkgu]');
+  if(gu) return openGuest(gu.dataset.guid);
+  if(addgu) return openGuest(null, addgu.dataset.addgu);
+  if(bulk) return openBulk(bulk.dataset.bulkgu);
   if(grow) openGift(grow.dataset.gid);
   else if(addg) openGift(null, addg.dataset.addg);
   else if(row) openItem(row.dataset.id);
   else if(add) openItem(null, add.dataset.add);
   else if(ev) openEvent(ev.dataset.ev);
-  else if(e.target.id==='clearF'){ filter=''; gFilter=''; document.getElementById('q').value=''; render(); }
+  else if(e.target.id==='clearF'){ filter=''; gFilter=''; guFilter=''; document.getElementById('q').value=''; render(); }
 });
 document.getElementById('chips').addEventListener('click', e=>{
-  const c=e.target.closest('[data-f]'), g=e.target.closest('[data-gf]');
-  if(c){ filter=c.dataset.f; render(); } if(g){ gFilter=g.dataset.gf; render(); }
+  const c=e.target.closest('[data-f]'), g=e.target.closest('[data-gf]'), gu=e.target.closest('[data-guf]');
+  if(c){ filter=c.dataset.f; render(); } if(g){ gFilter=g.dataset.gf; render(); } if(gu){ guFilter=gu.dataset.guf; render(); }
 });
 document.querySelector('.tabs').addEventListener('click', e=>{ const t=e.target.closest('[data-tab]'); if(t && t.dataset.tab!==tab) setTab(t.dataset.tab); });
 document.getElementById('q').addEventListener('input', render);
-document.getElementById('addItem').onclick = ()=> tab==='gifts' ? openGift(null) : openItem(null);
-document.getElementById('fab').onclick = ()=> tab==='gifts' ? openGift(null) : openItem(null);
+const addForTab = ()=> tab==='gifts' ? openGift(null) : tab==='guests' ? openGuest(null) : openItem(null);
+document.getElementById('addItem').onclick = addForTab;
+document.getElementById('fab').onclick = addForTab;
 document.getElementById('banner').addEventListener('click', e=>{ if(e.target.id==='bannerBtn') openSync(); if(e.target.id==='bannerX'){ ls.set('wedding-budget-banner2','hidden'); renderBanner(); } });
 document.getElementById('syncPill').onclick = ()=>openSync();
 document.getElementById('reloadBtn').onclick = ()=>reloadData();
@@ -743,6 +828,7 @@ menu.addEventListener('click', async e=>{
   if(a==='event') openEvent(null);
   if(a==='csv') exportCsv();
   if(a==='csvg') exportGiftsCsv();
+  if(a==='csvgu') exportGuestsCsv();
   if(a==='export') download(`wedding-budget-${today()}.json`, JSON.stringify(state,null,2), 'application/json');
   if(a==='import') document.getElementById('fileIn').click();
   if(a==='reset' && await ask('Вернуть исходный план расходов? Все оплаты, итоги и добавленные затраты будут удалены на всех устройствах. Подарки останутся.','Сбросить')){
@@ -887,7 +973,7 @@ document.getElementById('delEvent').onclick = async ()=>{
   const ev=state.events.find(x=>x.id===editingEv); if(!ev) return;
   const items=state.items.filter(i=>i.event===ev.id);
   eventDlg.close();
-  if(!await ask(`Удалить «${ev.name}»${items.length?` и ${items.length} ${plural(items.length,'запись','записи','записей')} в нём (затраты и подарки)`:''}?`,'Удалить')) return;
+  if(!await ask(`Удалить «${ev.name}»${items.length?` и ${items.length} ${plural(items.length,'запись','записи','записей')} в нём (затраты, подарки и гости)`:''}?`,'Удалить')) return;
   const snapEv=clone(ev), snapItems=clone(items);
   state.events=state.events.filter(x=>x!==ev); state.items=state.items.filter(i=>i.event!==ev.id);
   [ev,...items].forEach(x=>removeEntity(x.id)); commit();
@@ -942,6 +1028,193 @@ document.getElementById('delGift').onclick = ()=>{
   giftDlg.close(); commit();
   toast(`«${copy.name}» удалено`, ()=>{ state.items.push(touch(copy)); commit(); });
 };
+/* ================= Гости ================= */
+const GUESTS = () => state.items.filter(i=>i.kind==='guest');
+let guFilter = '';
+const gCount = g => Math.max(1, Number(g.count)||1);
+const gComing = g => g.rsvp==='yes' ? Math.max(0, g.coming ?? gCount(g)) : 0;
+const gStatus = g => g.rsvp==='yes' ? 'yes' : g.rsvp==='no' ? 'no' : g.invited ? 'wait' : 'notinv';
+const G_ST = { yes:['closed','Придут'], no:['no','Не придут'], wait:['advance','Ждём ответа'], notinv:['planned','Не приглашены'] };
+const DEFAULT_GROUPS = ['Родственники','Друзья','Коллеги','Соседи','Однокурсники'];
+function guestTotals(list){
+  const t = { records:list.length, people:0, coming:0, no:0, wait:0, notinv:0 };
+  list.forEach(g=>{ const n=gCount(g), s=gStatus(g); t.people+=n; if(s==='yes') t.coming+=gComing(g); else if(s==='no') t.no+=n; else t[s]+=n; });
+  t.answered = t.people - t.wait - t.notinv;
+  return t;
+}
+const people = n => `${n} ${plural(n,'человек','человека','человек')}`;
+
+function renderGuests(){
+  const all = GUESTS(), T = guestTotals(all), p = pct(T.answered, T.people);
+  document.getElementById('summary').innerHTML = `
+    <div class="card hero">
+      <div class="lbl">Подтвердили, что придут</div>
+      <div class="big money">${people(T.coming)}</div>
+      <div class="track" role="progressbar" aria-label="Ответили" aria-valuenow="${Math.round(p)}" aria-valuemin="0" aria-valuemax="100"><b style="width:${p}%"></b></div>
+      <div class="meta"><span>Ответили <strong>${T.answered}</strong> из ${people(T.people)}</span><span>${Math.round(p)}%</span></div>
+      ${T.people ? `<div class="plan">Ждём ответа: <strong>${people(T.wait)}</strong>${T.notinv?` · ещё не приглашены: <strong>${people(T.notinv)}</strong>`:''}. Если придут все, кто не ответил, будет <strong>${people(T.coming + T.wait + T.notinv)}</strong></div>` : ''}
+    </div>
+    <div class="card stats" style="grid-template-rows:none">
+      ${state.events.map(ev=>{ const t=guestTotals(all.filter(g=>g.event===ev.id)); return `<div class="stat"><span class="lbl">${esc(ev.name)}</span><span class="v">${t.coming} <span class="dim" style="font-weight:400">из ${t.people}</span></span></div>`; }).join('')}
+      <div class="stat"><span class="lbl">Не придут</span><span class="v">${people(T.no)}</span></div>
+    </div>`;
+
+  const cnt = { '':all.length, wait:0, yes:0, no:0, notinv:0 };
+  all.forEach(g=>cnt[gStatus(g)]++);
+  document.getElementById('chips').innerHTML = [['','Все'],['wait','Ждём ответа'],['yes','Придут'],['no','Не придут'],['notinv','Не приглашены']]
+    .filter(([k])=>k==='' || cnt[k] || guFilter===k)
+    .map(([k,l])=>`<button type="button" class="chip-f" data-guf="${k}" aria-pressed="${guFilter===k}">${l}<b>${cnt[k]}</b></button>`).join('');
+
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const match = g => (!guFilter || gStatus(g)===guFilter) && (!q || [g.name,g.group,g.phone,g.note,g.table].join(' ').toLowerCase().includes(q));
+  const filtering = !!(guFilter || q);
+  const order = { wait:0, notinv:1, yes:2, no:3 };
+
+  const html = state.events.map(ev=>{
+    const evAll = all.filter(g=>g.event===ev.id), list = evAll.filter(match), t = guestTotals(evAll);
+    if(filtering && !list.length) return '';
+    list.sort((a,b)=> (order[gStatus(a)]-order[gStatus(b)]) || String(a.group||'').localeCompare(String(b.group||''),'ru') || String(a.name).localeCompare(String(b.name),'ru'));
+    return `<section class="card event" aria-labelledby="guh-${ev.id}">
+      <div class="ev-head">
+        <div class="ev-top"><h2 id="guh-${ev.id}">${esc(ev.name)}</h2><b style="font-size:17px">${t.coming} <span class="dim" style="font-weight:400;font-size:14px">из ${t.people}</span></b></div>
+        <div class="ev-nums"><span>Придут <b>${t.coming}</b></span><span>Ждём <b>${t.wait}</b></span><span>Не придут <b>${t.no}</b></span>${t.notinv?`<span>Не приглашены <b>${t.notinv}</b></span>`:''}</div>
+        <div class="track"><b style="width:${pct(t.answered,t.people)}%"></b></div>
+      </div>
+      ${list.map(guestRow).join('') || `<div class="empty">Пока никого нет</div>`}
+      ${filtering ? '' : `<div class="add-pair"><button type="button" class="add-row" data-addgu="${ev.id}"><span>+</span>Добавить гостя</button><button type="button" class="add-row" data-bulkgu="${ev.id}"><span>☰</span>Списком</button></div>`}
+    </section>`;
+  }).join('');
+  document.getElementById('events').innerHTML = html || `<div class="card empty" style="text-align:center;padding:40px 16px">Ничего не найдено.<br><button class="btn" style="margin-top:12px" id="clearF" type="button">Сбросить фильтр</button></div>`;
+  document.getElementById('foot').textContent = `${all.length} ${plural(all.length,'запись','записи','записей')} · ${people(T.people)} в списке`;
+}
+function guestRow(g){
+  const s = gStatus(g), [cls, lbl] = G_ST[s], n = gCount(g);
+  const sub = [g.group, g.table?`стол ${g.table}`:'', g.note].filter(Boolean).map(esc).join(' · ');
+  const chip = `<span class="chip ${cls}">${lbl}${s==='yes' && gComing(g)!==n ? ` · ${gComing(g)} из ${n}` : ''}</span>`;
+  return `<button type="button" class="grow" data-guid="${g.id}">
+    <span class="g-name">${esc(g.name)}${sub?`<small>${sub}</small>`:''}</span>
+    <span class="g-item">${chip}</span>
+    <span class="g-amt">${n} <span class="dim" style="font-weight:400">чел.</span></span>
+    <span class="g-sub">${chip}</span>
+  </button>`;
+}
+
+/* Окно гостя */
+const guDlg=document.getElementById('guDlg'), guForm=document.getElementById('guForm');
+let editingGuest=null;
+function guGroups(){ return [...new Set([...DEFAULT_GROUPS, ...GUESTS().map(g=>g.group).filter(Boolean)])]; }
+function setRsvp(v){ guForm.querySelectorAll('[name=rsvp]').forEach(r=>r.checked = r.value===v); guSync(); }
+function guSync(){
+  const yes = guForm.querySelector('[name=rsvp]:checked')?.value==='yes';
+  document.getElementById('guComingF').hidden = !yes;
+  const n = Math.max(1, parseInt(guForm.count.value)||1);
+  if(yes && (!guForm.coming.value || +guForm.coming.value>n)) guForm.coming.value = n;
+  const ph = guForm.phone.value.replace(/[^\d+]/g,'');
+  const links = document.getElementById('guLinks');
+  if(ph.length>=10){
+    const wa = ph.replace(/^\+/,'').replace(/^8(?=\d{10}$)/,'7');
+    links.innerHTML = `<a class="btn" href="tel:${esc(ph)}">📞 Позвонить</a><a class="btn" href="https://wa.me/${esc(wa)}" target="_blank" rel="noopener">💬 WhatsApp</a>`;
+  } else links.innerHTML = '';
+}
+guForm.addEventListener('input', guSync);
+guForm.addEventListener('change', guSync);
+guForm.addEventListener('click', e=>{
+  const st=e.target.closest('[data-step]'); if(!st) return;
+  const inp = guForm[st.dataset.for], v = Math.max(st.dataset.for==='count'?1:0, (parseInt(inp.value)||0) + (+st.dataset.step));
+  inp.value = v; guSync();
+});
+function openGuest(id, eventId, keep){
+  const g = id ? state.items.find(i=>i.id===id) : null;
+  editingGuest = g ? g.id : null;
+  document.getElementById('guTitle').textContent = g ? 'Гость' : 'Новый гость';
+  document.getElementById('guEvent').innerHTML = state.events.map(e=>`<option value="${e.id}">${esc(e.name)}</option>`).join('');
+  const lastEv = ls.get('wedding-budget-guest-event');
+  guForm.event.value = g?.event ?? eventId ?? keep?.event ?? (state.events.some(e=>e.id===lastEv)?lastEv:state.events[state.events.length-1]?.id) ?? '';
+  guForm.name.value = g?.name ?? '';
+  guForm.count.value = g ? gCount(g) : 1;
+  guForm.group.value = g?.group ?? keep?.group ?? '';
+  document.getElementById('guGroupList').innerHTML = guGroups().map(x=>`<option value="${esc(x)}">`).join('');
+  guForm.phone.value = g?.phone ?? '';
+  guForm.invited.checked = g ? !!g.invited : !!keep?.invited;
+  guForm.coming.value = g && g.rsvp==='yes' ? gComing(g) : '';
+  guForm.table.value = g?.table ?? '';
+  guForm.note.value = g?.note ?? '';
+  setRsvp(g?.rsvp || '');
+  document.getElementById('delGuest').hidden = !g;
+  document.getElementById('guMore').hidden = !!g;
+  if(!guDlg.open) guDlg.showModal();
+  guDlg.querySelector('.dlg-b').scrollTop = 0;
+  if(!g) guForm.name.focus(); else document.activeElement?.blur?.();
+}
+function saveGuest(){
+  if(!state.events.length){ toast('Сначала добавьте мероприятие'); return null; }
+  const name = guForm.name.value.trim();
+  if(!name){ guForm.name.focus(); guForm.name.setCustomValidity('Кого приглашаем?'); guForm.name.reportValidity(); guForm.name.setCustomValidity(''); return null; }
+  const rsvp = guForm.querySelector('[name=rsvp]:checked')?.value || '';
+  const count = Math.max(1, parseInt(guForm.count.value)||1);
+  const data = { kind:'guest', event:guForm.event.value, name, count, group:guForm.group.value.trim(), phone:guForm.phone.value.trim(),
+    invited: guForm.invited.checked || !!rsvp, rsvp, coming: rsvp==='yes' ? Math.min(count, Math.max(0, parseInt(guForm.coming.value)||count)) : null,
+    table:guForm.table.value.trim(), note:guForm.note.value.trim() };
+  ls.set('wedding-budget-guest-event', data.event);
+  const cur = editingGuest && state.items.find(i=>i.id===editingGuest);
+  if(cur) Object.assign(cur, data, {updatedAt:Date.now()});
+  else state.items.push(touch({id:uid(), ...data}));
+  commit();
+  return data;
+}
+guForm.addEventListener('submit', e=>{ e.preventDefault(); if(saveGuest()){ guDlg.close(); toast('Сохранено'); } });
+document.getElementById('guMore').onclick = ()=>{
+  const d = saveGuest(); if(!d) return;
+  toast(`«${d.name}» добавлен`);
+  openGuest(null, null, {event:d.event, group:d.group, invited:d.invited});
+};
+document.getElementById('delGuest').onclick = ()=>{
+  const g = state.items.find(i=>i.id===editingGuest); if(!g) return;
+  const copy = clone(g);
+  state.items = state.items.filter(i=>i!==g); removeEntity(g.id);
+  guDlg.close(); commit();
+  toast(`«${copy.name}» удалён`, ()=>{ state.items.push(touch(copy)); commit(); });
+};
+
+/* Добавление списком */
+const buDlg=document.getElementById('buDlg'), buForm=document.getElementById('buForm');
+function parseGuestLines(text){
+  return text.split(/\n+/).map(l=>l.trim().replace(/^(?:[-–—•*]+|\d+[.)])\s*/,'')).filter(Boolean).map(l=>{
+    const m = l.match(/^(.*?)[\s,;—–-]+(\d{1,2})\s*(чел\.?|человек[а]?)?$/i);
+    return m && m[1].trim() ? { name:m[1].trim(), count:+m[2]||1 } : { name:l, count:1 };
+  });
+}
+function buPreview(){
+  const list = parseGuestLines(buForm.list.value), n = list.reduce((a,x)=>a+x.count,0);
+  document.getElementById('buInfo').textContent = list.length ? `Будет добавлено: ${list.length} ${plural(list.length,'запись','записи','записей')}, ${people(n)}` : '';
+  buForm.querySelector('[type=submit]').disabled = !list.length;
+}
+function openBulk(eventId){
+  document.getElementById('buEvent').innerHTML = state.events.map(e=>`<option value="${e.id}">${esc(e.name)}</option>`).join('');
+  buForm.event.value = eventId || ls.get('wedding-budget-guest-event') || state.events[0]?.id || '';
+  buForm.list.value = ''; buForm.group.value = ''; buForm.invited.checked = false;
+  document.getElementById('buGroupList').innerHTML = guGroups().map(x=>`<option value="${esc(x)}">`).join('');
+  buPreview(); buDlg.showModal(); buForm.list.focus();
+}
+buForm.list.addEventListener('input', buPreview);
+buForm.addEventListener('submit', e=>{
+  e.preventDefault();
+  const list = parseGuestLines(buForm.list.value); if(!list.length) return;
+  const base = { kind:'guest', event:buForm.event.value, group:buForm.group.value.trim(), invited:buForm.invited.checked, rsvp:'', coming:null, phone:'', table:'', note:'' };
+  const ids = [];
+  list.forEach(x=>{ const id=uid(); ids.push(id); state.items.push(touch({id, ...base, name:x.name, count:x.count})); });
+  ls.set('wedding-budget-guest-event', base.event);
+  buDlg.close(); commit();
+  toast(`Добавлено: ${list.length}`, ()=>{ state.items = state.items.filter(i=>!ids.includes(i.id)); ids.forEach(removeEntity); commit(); });
+});
+
+function exportGuestsCsv(){
+  const ev = Object.fromEntries(state.events.map(e=>[e.id,e.name]));
+  const lines = [['Мероприятие','Гость','Группа','Телефон','Человек','Статус','Придут','Стол','Заметка']];
+  state.events.forEach(e=>GUESTS().filter(g=>g.event===e.id).forEach(g=>lines.push([ev[g.event], g.name, g.group||'', g.phone||'', gCount(g), G_ST[gStatus(g)][1], g.rsvp==='yes'?gComing(g):'', g.table||'', g.note||''])));
+  download(`wedding-guests-${today()}.csv`, '﻿'+lines.map(r=>r.map(c=>`"${String(c??'').replace(/"/g,'""')}"`).join(';')).join('\n'), 'text/csv');
+}
+
 function exportGiftsCsv(){
   const ev=Object.fromEntries(state.events.map(e=>[e.id,e.name]));
   const lines=[['Мероприятие','Кто подарил','Сумма','Подарок вещью','Заметка']];
